@@ -605,6 +605,13 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     /// The view this session renders through (@ref DisplaySurface), or nullptr while it has none —
     /// a background tab that was never shown, or a headless test.
     [[nodiscard]] DisplaySurface* display() noexcept { return _display; }
+
+    /// How this session raises desktop notifications: the notifier it was constructed with, or the
+    /// platform's own when it was given none. Exposed so that who answers `OSC 99` / `OSC 777` for a
+    /// session is something a composition root's test can state, rather than something it can only
+    /// find out by sending one to the desktop.
+    /// @return The notifier; owned by the session.
+    [[nodiscard]] platform::Notifier const& desktopNotifier() const noexcept { return *_desktopNotifier; }
     [[nodiscard]] DisplaySurface const* display() const noexcept { return _display; }
 
     /// @return The shape the application last requested via `OSC 22`, or nullopt while it has

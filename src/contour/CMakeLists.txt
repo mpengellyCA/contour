@@ -595,6 +595,8 @@ if(CONTOUR_FRONTEND_GUI)
         # resources.qrc again — doing so would duplicate the resource registration symbols.
         add_executable(contour_gui_test
             test/test_main.cpp
+            embed/Embed.cpp
+            embed/Embed_test.cpp
             remote/NativeController_test.cpp
             remote/RemoteController_test.cpp
             remote/TmuxController_test.cpp
