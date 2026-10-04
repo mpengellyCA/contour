@@ -120,6 +120,7 @@ option(CONTOUR_TESTING "Enables building of unittests for libterminal [default: 
 option(CONTOUR_TESTING_CORE_CPP "Builds the unit tests of the vendored core-cpp (vendor/core-cpp); needs core-cpp v0.2.1 or later [default: OFF]" OFF)
 option(CONTOUR_VERIFY_STATE "Enables expensive internal terminal-state invariant checks (Grid/Terminal verifyState) [default: ${MAINTAINER_MODE}]" ${MAINTAINER_MODE})
 option(CONTOUR_FRONTEND_GUI "Enables GUI frontend." ON)
+option(CONTOUR_EMBED_LIBRARY "Builds contour_embed, the terminal display as a shared library for a Qt Quick host [default: OFF]" OFF)
 option(CONTOUR_COVERAGE "Builds with codecov [default: OFF]" OFF)
 option(CONTOUR_SANITIZE "Builds with Address sanitizer enabled [default: OFF]" "OFF")
 option(CONTOUR_STACKTRACE_ADDR2LINE "Uses addr2line to pretty-print SEGV stacktrace." ${ADDR2LINE_DEFAULT})

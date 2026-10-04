@@ -793,6 +793,10 @@ if(CONTOUR_FRONTEND_GUI)
 endif()
 # }}}
 
+if(CONTOUR_EMBED_LIBRARY AND CONTOUR_FRONTEND_GUI)
+    add_subdirectory(embed)
+endif()
+
 # {{{ contour_test: the Qt-free unit tests, in BOTH frontend configurations
 # config/, command/ and cli/ link no Qt, so their tests need none either -- and a build configured
 # without the GUI frontend has none to give them. That is how that configuration came to have no
