@@ -565,6 +565,8 @@ constexpr StringLiteral PermissionsConfig {
     "    change_font: {}\n"
     "    {comment} Allows displaying the \" Host Writable Statusline \" programmatically using `DECSSDT 2`.\n"
     "    display_host_writable_statusline: {}\n"
+    "    {comment} Allows the application to write the clipboard via `OSC 52 ; c ; Pd ST` and `OSC 5522`.\n"
+    "    write_clipboard: {}\n"
     "\n"
 };
 
@@ -2182,6 +2184,7 @@ constexpr StringLiteral PermissionsWeb {
     "      change_font: ask\n"
     "      capture_buffer: ask\n"
     "      display_host_writable_statusline: ask\n"
+    "      write_clipboard: allow\n"
     "```\n"
     ":octicons-horizontal-rule-16: ==change_font== This option determines the access permission for changing "
     "the font using the VT sequence `OSC 50 ; Pt ST`. The possible values are: allow, deny, ask. <br/>\n"
@@ -2192,6 +2195,10 @@ constexpr StringLiteral PermissionsWeb {
     ":octicons-horizontal-rule-16: ==display_host_writable_statusline== This option determines the access "
     "permission for displaying the \"Host Writable Statusline\" programmatically using the VT sequence "
     "`DECSSDT 2`. The possible values are: allow, deny, ask. <br/>\n"
+    ":octicons-horizontal-rule-16: ==write_clipboard== This option determines the access permission for "
+    "an application writing the clipboard using the VT sequence `OSC 52 ; c ; Pd ST` or the kitty "
+    "clipboard protocol (`OSC 5522`). Copying a selection yourself is not affected. The possible values "
+    "are: allow, deny, ask. <br/>\n"
     "\n"
 };
 

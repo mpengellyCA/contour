@@ -465,6 +465,10 @@ struct PermissionsConfig
     Permission captureBuffer { Permission::Ask };
     Permission changeFont { Permission::Ask };
     Permission displayHostWritableStatusLine { Permission::Ask };
+    /// Allow, where its neighbours ask: an application has always been able to write the clipboard
+    /// unasked, and a permission that appeared with a different default would change that for every
+    /// existing configuration.
+    Permission writeClipboard { Permission::Allow };
 };
 
 struct InputModeConfig
@@ -1986,7 +1990,7 @@ struct Writer
 
     [[nodiscard]] std::string format(std::string_view doc, PermissionsConfig const& v)
     {
-        return format(doc, v.captureBuffer, v.changeFont, v.displayHostWritableStatusLine);
+        return format(doc, v.captureBuffer, v.changeFont, v.displayHostWritableStatusLine, v.writeClipboard);
     }
 
     [[nodiscard]] std::string format(std::string_view doc, InputModeConfig v)

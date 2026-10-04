@@ -70,7 +70,8 @@ struct RecordingEvents final: vtbackend::Terminal::NullEvents
     int bells = 0;
     std::string notifyTitle;
     std::string notifyBody;
-    std::string clipboard;
+    std::string clipboard;          ///< What arrived as a copy of the user's own.
+    std::string requestedClipboard; ///< What arrived as an application's request to write.
 
     void bell() override { ++bells; }
     void notify(std::string_view title, std::string_view body) override
@@ -79,6 +80,7 @@ struct RecordingEvents final: vtbackend::Terminal::NullEvents
         notifyBody = body;
     }
     void copyToClipboard(std::string_view data) override { clipboard = data; }
+    void requestClipboardWrite(std::string_view data) override { requestedClipboard = data; }
 };
 
 /// The full closed loop: the REAL server serves deltas of a REAL terminal, the REAL client mirrors
@@ -1543,11 +1545,17 @@ TEST_CASE("bell, notification and clipboard events reach the mirror", "[vthost][
         co_await waitUntil(&h->loop, [&] { return h->mirrorEvents.notifyTitle == "Build"; });
         CHECK(h->mirrorEvents.notifyBody == "done ok");
 
-        // Clipboard write (OSC 52) → mirror's copyToClipboard() with decoded text.
+        // Clipboard write (OSC 52) → mirror's requestClipboardWrite() with decoded text. As a REQUEST,
+        // not as a copy: what the relay carries is an application's write, and it has to reach the
+        // client's frontend as one or the client's write_clipboard permission never sees it.
         auto const encoded = core::base64::encode(std::string_view { "clip-text" });
         serverWrites(h, session, std::format("\033]52;c;{}\033\\", encoded));
-        co_await waitUntil(&h->loop, [&] { return h->mirrorEvents.clipboard == "clip-text"; });
-        CHECK(h->mirrorEvents.clipboard == "clip-text");
+        co_await waitUntil(&h->loop, [&] {
+            return h->mirrorEvents.requestedClipboard == "clip-text"
+                   || h->mirrorEvents.clipboard == "clip-text";
+        });
+        CHECK(h->mirrorEvents.requestedClipboard == "clip-text");
+        CHECK(h->mirrorEvents.clipboard.empty());
 
         h->client->detach();
     }(&h, session);

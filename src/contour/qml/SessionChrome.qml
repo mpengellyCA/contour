@@ -214,6 +214,16 @@ Item {
         onRejected: if (chrome.session !== null) chrome.session.executeShowHostWritableStatusLine(false, false);
     }
 
+    RequestPermission {
+        id: requestClipboardWriteDialog
+        text: qsTr("The host application is requesting to write the clipboard.")
+        onYesToAllClicked: if (chrome.session !== null) chrome.session.executePendingClipboardWrite(true, true);
+        onYesClicked: if (chrome.session !== null) chrome.session.executePendingClipboardWrite(true, false);
+        onNoToAllClicked: if (chrome.session !== null) chrome.session.executePendingClipboardWrite(false, true);
+        onNoClicked: if (chrome.session !== null) chrome.session.executePendingClipboardWrite(false, false);
+        onRejected: if (chrome.session !== null) chrome.session.executePendingClipboardWrite(false, false);
+    }
+
     // The find bar (Ctrl+Shift+F, or `/` in Vi normal mode). Per pane, not per window: each session
     // keeps its own pattern, count and highlights, so a split shows the bar over the pane being
     // searched. Opened by the session's searchBarRequested signal, wired in Connections below.
@@ -296,5 +306,6 @@ Item {
         function onRequestPermissionForBufferCapture() { requestBufferCaptureDialog.open(); }
         function onRequestPermissionForShowHostWritableStatusLine() { requestShowHostWritableStatusLine.open(); }
         function onRequestPermissionForPasteLargeFile() { requestLargeFilePaste.open(); }
+        function onRequestPermissionForClipboardWrite() { requestClipboardWriteDialog.open(); }
     }
 }

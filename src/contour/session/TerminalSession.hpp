@@ -71,6 +71,7 @@ enum class GuardedRole : uint8_t
     CaptureBuffer,
     ShowHostWritableStatusLine,
     BigPaste,
+    WriteClipboard,
 };
 
 /**
@@ -632,6 +633,7 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     Q_INVOKABLE void applyPendingPaste(bool allow, bool remember);
     Q_INVOKABLE void executePendingBufferCapture(bool allow, bool remember);
     Q_INVOKABLE void executeShowHostWritableStatusLine(bool allow, bool remember);
+    Q_INVOKABLE void executePendingClipboardWrite(bool allow, bool remember);
     Q_INVOKABLE void resizeTerminalToDisplaySize();
 
     void updateColorPreference(vtbackend::ColorPreference preference);
@@ -646,6 +648,7 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     vtbackend::FontDef getFontDef() override;
     void setFontDef(vtbackend::FontDef const& fontDef) override;
     void copyToClipboard(std::string_view data) override;
+    void requestClipboardWrite(std::string_view data) override;
     void setPointerShape(std::string_view cssName) override;
     void openDocument(std::string_view /*fileOrUrl*/) override;
     void inspect() override;
@@ -929,6 +932,7 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     void requestPermissionForPasteLargeFile();
     void requestPermissionForBufferCapture();
     void requestPermissionForShowHostWritableStatusLine();
+    void requestPermissionForClipboardWrite();
     void showNotification(QString const& title, QString const& content);
     void fontSizeChanged();
 
@@ -1209,6 +1213,16 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
 
     std::optional<vtbackend::FontDef> _pendingFontChange;
 
+    /// What the application last asked to be put on the clipboard, until the permission gate answers.
+    ///
+    /// One slot rather than a queue, unlike the buffer captures above: a clipboard holds one thing, so
+    /// of several writes outstanding at once only the last could ever be seen, and nobody is owed a
+    /// reply for the others. It also bounds what an application can park here while a dialog is up.
+    /// Mutex-guarded for the same reason as the captures: requestClipboardWrite() is a
+    /// Terminal::Events hook and stores from the terminal thread, the gate takes it on the GUI thread.
+    std::optional<std::string> _pendingClipboardWrite;
+    std::mutex _pendingClipboardWriteMutex;
+
     /// A paste that exceeded the soft limit and is waiting for the user's verdict.
     ///
     /// The text is stored already normalized and stripped, exactly as the immediate path would have
@@ -1261,6 +1275,7 @@ struct std::formatter<contour::session::GuardedRole>: std::formatter<std::string
             case contour::session::GuardedRole::CaptureBuffer: output = "Capture Buffer"; break;
             case contour::session::GuardedRole::ShowHostWritableStatusLine:  output = "show Host Writable Statusline"; break;
             case contour::session::GuardedRole::BigPaste:  output = "paste large number of characters"; break;
+            case contour::session::GuardedRole::WriteClipboard:  output = "Write Clipboard"; break;
         }
         // clang-format on
         return formatter<string_view>::format(output, ctx);

@@ -672,8 +672,11 @@ void ScreenMirror::applyEvent(proto::SessionEventPdu const& event)
             [this](proto::SessionNotify const& notify) { _terminal->notify(notify.title, notify.body); },
             [this](proto::SessionClipboard const& clipboard) {
                 // Under the CLIENT's own write permission, which is the point of routing it
-                // through the terminal rather than to the clipboard directly.
-                _terminal->copyToClipboard(clipboard.data);
+                // through the terminal rather than to the clipboard directly -- and as a REQUEST,
+                // because that is what the permission governs. What the daemon relays here is only
+                // ever an application's write: it feeds its terminals raw bytes, never key events,
+                // so nothing a user copies on that side can arrive on this path.
+                _terminal->requestClipboardWrite(clipboard.data);
             },
         },
         event);

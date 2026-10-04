@@ -3131,6 +3131,11 @@ void Terminal::copyToClipboard(string_view data)
     _eventListener.copyToClipboard(data);
 }
 
+void Terminal::requestClipboardWrite(string_view data)
+{
+    _eventListener.requestClipboardWrite(data);
+}
+
 void Terminal::requestClipboardRead(string_view pc)
 {
     // Reading the clipboard is opt-in: an application that could read it unbidden could exfiltrate

@@ -572,6 +572,21 @@ namespace
                           perm.displayHostWritableStatusLine = v;
                           p.permissions = perm;
                       }),
+                  enumField(
+                      "permission_write_clipboard",
+                      "Write clipboard permission",
+                      "Permission required for the application to write the clipboard.",
+                      std::array {
+                          std::pair { "allow"sv, config::Permission::Allow },
+                          std::pair { "deny"sv, config::Permission::Deny },
+                          std::pair { "ask"sv, config::Permission::Ask },
+                      },
+                      [](TerminalProfile const& p) { return p.permissions.value().writeClipboard; },
+                      [](TerminalProfile& p, auto v) {
+                          auto perm = p.permissions.value();
+                          perm.writeClipboard = v;
+                          p.permissions = perm;
+                      }),
               } },
             { "Visual effects",
               "✦",

@@ -718,6 +718,7 @@ void TerminalSession::executeRole(GuardedRole role, bool allow, bool remember)
             executeShowHostWritableStatusLine(allow, remember);
             break;
         case GuardedRole::BigPaste: applyPendingPaste(allow, remember); break;
+        case GuardedRole::WriteClipboard: executePendingClipboardWrite(allow, remember); break;
     }
 }
 
@@ -732,6 +733,7 @@ config::Permission TerminalSession::configuredPermissionFor(GuardedRole role) co
         // BigPaste is gated on payload size, not on configuration; what the gate adds for it is the
         // answer the user asked to be remembered for the session.
         case GuardedRole::BigPaste: return config::Permission::Ask;
+        case GuardedRole::WriteClipboard: return permissions.writeClipboard;
     }
     return config::Permission::Ask;
 }
@@ -780,6 +782,7 @@ void TerminalSession::requestPermission(config::Permission allowedByConfig, Guar
                     case GuardedRole::CaptureBuffer: emit requestPermissionForBufferCapture(); break;
                     case GuardedRole::ShowHostWritableStatusLine: emit requestPermissionForShowHostWritableStatusLine(); break;
                     case GuardedRole::BigPaste: emit requestPermissionForPasteLargeFile(); break;
+                    case GuardedRole::WriteClipboard: emit requestPermissionForClipboardWrite(); break;
                         // clang-format on
                 }
             }
@@ -1019,6 +1022,40 @@ void TerminalSession::copyToClipboard(std::string_view data)
         return;
 
     _display->post([data = string(data)]() { platform::copyToClipboard(data); });
+}
+
+void TerminalSession::requestClipboardWrite(std::string_view data)
+{
+    // Unlike copyToClipboard() above, this is the application's doing rather than the user's, so it
+    // goes through the permission gate. Display-less it is dropped, exactly as that one drops it:
+    // there is no GUI queue to decide on, and unlike a buffer capture nobody is waiting for a reply.
+    if (!_display)
+        return;
+
+    {
+        auto const _ = std::scoped_lock { _pendingClipboardWriteMutex };
+        _pendingClipboardWrite = std::string(data);
+    }
+
+    postPermissionRequest(GuardedRole::WriteClipboard);
+}
+
+void TerminalSession::executePendingClipboardWrite(bool allow, bool remember)
+{
+    if (remember)
+        _rememberedPermissions[GuardedRole::WriteClipboard] = allow;
+
+    // Taken whatever the verdict: a refused write must not be what a later approval stores.
+    auto pending = std::optional<std::string> {};
+    {
+        auto const _ = std::scoped_lock { _pendingClipboardWriteMutex };
+        pending = std::exchange(_pendingClipboardWrite, std::nullopt);
+    }
+
+    if (!allow || !pending)
+        return;
+
+    platform::copyToClipboard(*pending);
 }
 
 void TerminalSession::openDocument(std::string_view fileOrUrl)

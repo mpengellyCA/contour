@@ -932,6 +932,7 @@ profiles:
             change_font: allow
             capture_buffer: deny
             display_host_writable_statusline: ask
+            write_clipboard: deny
 )"sv);
 
     auto const* profile = config.profile("main");
@@ -955,6 +956,7 @@ profiles:
     CHECK(profile->permissions.value().changeFont == contour::config::Permission::Allow);
     CHECK(profile->permissions.value().captureBuffer == contour::config::Permission::Deny);
     CHECK(profile->permissions.value().displayHostWritableStatusLine == contour::config::Permission::Ask);
+    CHECK(profile->permissions.value().writeClipboard == contour::config::Permission::Deny);
 }
 
 TEST_CASE("Config: folding loads from YAML and reaches the emulation settings", "[config]")

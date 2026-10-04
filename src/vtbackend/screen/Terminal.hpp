@@ -310,6 +310,15 @@ class Terminal
         virtual void setFontDef(FontDef const& /*fontSpec*/) {}
         virtual void copyToClipboard(std::string_view /*data*/) {}
 
+        /// The application asked for @p data to be put on the clipboard (`OSC 52`, `OSC 5522`).
+        ///
+        /// A hook of its own, apart from copyToClipboard(), because the two differ in who decided:
+        /// that one carries what the user selected or yanked, this one carries bytes the application
+        /// chose. A frontend that wants to ask, or to refuse, can only do so if it can tell them
+        /// apart. The base implementation does not, and stores it as it always has.
+        /// @param data The decoded text to store.
+        virtual void requestClipboardWrite(std::string_view data) { copyToClipboard(data); }
+
         /// The application asked for a different mouse pointer shape, by CSS name (`OSC 22`).
         /// @see vtbackend::pointer_shape::SupportedNames.
         virtual void setPointerShape(std::string_view /*cssName*/) {}
@@ -1779,6 +1788,12 @@ class Terminal
     [[nodiscard]] FontDef getFontDef();
     void setFontDef(FontDef const& fontDef);
     void copyToClipboard(std::string_view data);
+
+    /// Passes an application's request to store @p data on the clipboard (`OSC 52 ; Pc ; <base64> ST`,
+    /// or a completed `OSC 5522` write) on to the frontend, which decides whether it is honoured.
+    /// @param data The decoded text to store.
+    /// @see Events::requestClipboardWrite
+    void requestClipboardWrite(std::string_view data);
 
     // {{{ Mouse pointer shape (OSC 22)
     /// @return the CSS name of the shape currently in effect.

@@ -2587,6 +2587,123 @@ TEST_CASE("TerminalSession: a capture asked of a background pane is refused, not
 
 namespace
 {
+
+/// `OSC 52 ; c ; <base64("from the application")> ST`: an application writing the clipboard.
+constexpr auto WriteClipboardSequence = std::string_view { "\033]52;c;ZnJvbSB0aGUgYXBwbGljYXRpb24=\033\\" };
+constexpr auto WrittenByApplication = std::string_view { "from the application" };
+constexpr auto HeldByUser = std::string_view { "the user's" };
+
+/// Builds a session whose profile answers write_clipboard with @p permission, with a recording surface
+/// attached -- without a display nothing reaches the clipboard whatever the permission says -- and
+/// puts something of the user's on the clipboard for the application to overwrite.
+[[nodiscard]] SessionWithSurface sessionWritingClipboard(contour::ContourGuiApp& app,
+                                                         contour::config::Permission permission)
+{
+    auto const name =
+        registerProfile(app, "clipboard-perm", [permission](contour::config::TerminalProfile& p) {
+            p.permissions.value().writeClipboard = permission;
+        });
+    QGuiApplication::clipboard()->setText(QString::fromUtf8(HeldByUser));
+    return makeSessionWithSurface(app, name);
+}
+
+/// What the clipboard holds now.
+[[nodiscard]] std::string clipboardText()
+{
+    return QGuiApplication::clipboard()->text().toStdString();
+}
+
+/// Counts the clipboard-write permission dialogs @p session raises into @p asks.
+void countClipboardAsks(contour::session::TerminalSession& session, int& asks)
+{
+    QObject::connect(&session,
+                     &contour::session::TerminalSession::requestPermissionForClipboardWrite,
+                     [&asks] { ++asks; });
+}
+
+} // namespace
+
+TEST_CASE("TerminalSession: the configured write_clipboard permission decides an application's write",
+          "[contour][session][permission]")
+{
+    // Every section drives the real sequence rather than the hook: what is guarded is that an OSC 52
+    // write reaches the gate at all, and it used to go straight to the clipboard.
+    contour::test::TestApp testApp;
+    auto asks = 0;
+
+    SECTION("the default is allow, as it has always been")
+    {
+        CHECK(contour::config::PermissionsConfig {}.writeClipboard == contour::config::Permission::Allow);
+
+        QGuiApplication::clipboard()->setText(QString::fromUtf8(HeldByUser));
+        auto held = makeSessionWithSurface(testApp.app());
+        countClipboardAsks(*held, asks);
+
+        held->terminal().writeToScreen(WriteClipboardSequence);
+
+        CHECK(asks == 0);
+        CHECK(clipboardText() == WrittenByApplication);
+    }
+
+    SECTION("deny leaves the clipboard alone, without asking")
+    {
+        auto held = sessionWritingClipboard(testApp.app(), contour::config::Permission::Deny);
+        countClipboardAsks(*held, asks);
+
+        held->terminal().writeToScreen(WriteClipboardSequence);
+
+        CHECK(asks == 0);
+        CHECK(clipboardText() == HeldByUser);
+    }
+
+    SECTION("deny refuses the application, not the user")
+    {
+        // The permission is about who asked. A selection the user copies arrives through
+        // copyToClipboard() and must keep working under a profile that refuses the application.
+        auto held = sessionWritingClipboard(testApp.app(), contour::config::Permission::Deny);
+
+        held->copyToClipboard("copied by hand");
+
+        CHECK(clipboardText() == "copied by hand");
+    }
+
+    SECTION("ask stores nothing until the user answers, and remembers the answer")
+    {
+        auto held = sessionWritingClipboard(testApp.app(), contour::config::Permission::Ask);
+        countClipboardAsks(*held, asks);
+
+        held->terminal().writeToScreen(WriteClipboardSequence);
+        REQUIRE(asks == 1);
+        CHECK(clipboardText() == HeldByUser);
+
+        // "Yes to all": the write goes through, and the answer is stored.
+        held->executePendingClipboardWrite(/*allow=*/true, /*remember=*/true);
+        CHECK(clipboardText() == WrittenByApplication);
+
+        // The second write must resolve from that memory instead of asking again.
+        QGuiApplication::clipboard()->setText(QString::fromUtf8(HeldByUser));
+        held->terminal().writeToScreen(WriteClipboardSequence);
+        CHECK(asks == 1);
+        CHECK(clipboardText() == WrittenByApplication);
+    }
+
+    SECTION("a refused write is not what a later approval stores")
+    {
+        auto held = sessionWritingClipboard(testApp.app(), contour::config::Permission::Ask);
+        countClipboardAsks(*held, asks);
+
+        held->terminal().writeToScreen(WriteClipboardSequence);
+        held->executePendingClipboardWrite(/*allow=*/false, /*remember=*/false);
+        CHECK(clipboardText() == HeldByUser);
+
+        // Nothing is pending any more, so an approval with nothing to approve stores nothing.
+        held->executePendingClipboardWrite(/*allow=*/true, /*remember=*/false);
+        CHECK(clipboardText() == HeldByUser);
+    }
+}
+
+namespace
+{
 /// Writes an OSC-8 hyperlink cell to @p session's screen and hovers the mouse over it, so
 /// terminal().tryGetHoveringHyperlink() resolves — the precondition FollowHyperlink needs to reach
 /// TerminalSession::followHyperlink() without a display. @p uri is the OSC-8 target.
