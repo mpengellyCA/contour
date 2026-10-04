@@ -23,11 +23,17 @@
 
 #include <array>
 #include <chrono>
+#include <exception>
+#include <expected>
+#include <filesystem>
+#include <format>
+#include <fstream>
 #include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 namespace contour::embed
@@ -102,6 +108,74 @@ namespace
         Drained _drained;
     };
 
+    /// Loads the configuration a host gets when it supplies none, or none that can be used.
+    /// @param config What to load it into.
+    void loadBuiltinConfig(config::Config& config)
+    {
+        // A directory of its own, not a bare temporary file: loading a configuration also reads the
+        // files beside it (layouts.yml, settings.yml, profiles/), and what happens to lie in the
+        // system's temporary directory is nobody's configuration.
+        QTemporaryDir const directory;
+        Require(directory.isValid());
+        QFile builtin { directory.filePath(QStringLiteral("contour.yml")) };
+        Require(builtin.open(QIODevice::WriteOnly));
+        builtin.write(BuiltinConfig.data(), static_cast<qint64>(BuiltinConfig.size()));
+        builtin.close();
+        config::loadConfigFromFile(config, builtin.fileName().toStdString());
+    }
+
+    /// Says whether a host's configuration file is one the loader can be given.
+    ///
+    /// The loader is forgiving in ways a host cannot afford: it writes Contour's default
+    /// configuration to a path that does not exist, and it carries on with Contour's defaults over a
+    /// document it could not parse. Either way the terminal would run on a configuration nobody
+    /// chose, so both are found here, before the loader sees the file.
+    /// @param file The host's file.
+    /// @return Nothing, or why the file cannot be used.
+    [[nodiscard]] std::expected<void, std::string> usableConfigFile(std::filesystem::path const& file)
+    {
+        auto ec = std::error_code {};
+        if (!std::filesystem::is_regular_file(file, ec))
+            return std::unexpected(std::string { "it is not a file" });
+        try
+        {
+            auto stream = std::ifstream { file, std::ios::binary };
+            if (!stream.good())
+                return std::unexpected(std::string { "it cannot be read" });
+            if (!YAML::Load(stream).IsMap())
+                return std::unexpected(std::string { "it is not a YAML mapping" });
+        }
+        catch (std::exception const& e)
+        {
+            return std::unexpected(std::string { e.what() });
+        }
+        return {};
+    }
+
+    /// Loads a host's configuration file, refusing one that would leave Contour's defaults in force.
+    /// @param config What to load it into.
+    /// @param file   The host's file.
+    /// @param app    The application, which says which profile a session would start in.
+    /// @return Nothing, or why the file was not used; @p config is then in no usable state.
+    [[nodiscard]] std::expected<void, std::string> loadHostConfig(config::Config& config,
+                                                                  std::filesystem::path const& file,
+                                                                  ContourGuiApp const& app)
+    {
+        return usableConfigFile(file).and_then([&]() -> std::expected<void, std::string> {
+            try
+            {
+                config::loadConfigFromFile(config, file);
+            }
+            catch (std::exception const& e)
+            {
+                return std::unexpected(std::string { e.what() });
+            }
+            if (config.findProfile(app.profileName()) == nullptr)
+                return std::unexpected(std::format("it defines no profile named '{}'", app.profileName()));
+            return {};
+        });
+    }
+
     /// Leaves @p config with one profile, and no way back to the others.
     ///
     /// A child can ask a session for any profile the configuration holds by name (DCS $ p), and no
@@ -141,23 +215,23 @@ Runtime::Runtime(RuntimeOptions options, QObject* parent):
     auto argv = std::array<char const*, 2> { "contour", "terminal" };
     Require(_impl->app->parseParametersForTesting(static_cast<int>(argv.size()), argv.data()));
 
-    if (_impl->options.configFile.empty())
+    auto& config = _impl->app->config();
+    auto const& hostFile = _impl->options.configFile;
+    if (hostFile.empty())
+        loadBuiltinConfig(config);
+    else if (auto const loaded = loadHostConfig(config, hostFile, *_impl->app); !loaded)
     {
-        // A directory of its own, not a bare temporary file: loading a configuration also reads the
-        // files beside it (layouts.yml, settings.yml, profiles/), and what happens to lie in the
-        // system's temporary directory is nobody's configuration.
-        QTemporaryDir const directory;
-        Require(directory.isValid());
-        QFile builtin { directory.filePath(QStringLiteral("contour.yml")) };
-        Require(builtin.open(QIODevice::WriteOnly));
-        builtin.write(BuiltinConfig.data(), static_cast<qint64>(BuiltinConfig.size()));
-        builtin.close();
-        config::loadConfigFromFile(_impl->app->config(), builtin.fileName().toStdString());
+        // Closed, not open: a host that named a file wanted something other than Contour's defaults,
+        // and the built-in profile is the only other configuration there is. The constructor cannot
+        // refuse, so it says so where a host that looks will find it.
+        errorLog()("Not using the configuration file {}: {}. Using the built-in embed profile instead.",
+                   hostFile.string(),
+                   loaded.error());
+        config = config::Config {};
+        loadBuiltinConfig(config);
     }
-    else
-        config::loadConfigFromFile(_impl->app->config(), _impl->options.configFile);
 
-    keepOnlyProfile(_impl->app->config(), _impl->app->profileName());
+    keepOnlyProfile(config, _impl->app->profileName());
 
     display::TerminalAccessible::installFactory();
     qmlRegisterType<display::TerminalDisplay>("Contour.Terminal", 1, 0, "ContourTerminal");

@@ -36,6 +36,21 @@ struct RuntimeOptions
 {
     /// A Contour configuration file. Empty means the built-in embed profile: no status line, no
     /// key bindings, no scrollbar, and every child-requested permission denied.
+    ///
+    /// A file that is named is read once, as a whole Contour configuration: what it does not say is
+    /// Contour's default, not the built-in embed profile's. A file that parses may therefore bind
+    /// keys or allow a permission the built-in profile denies, by saying so or by leaving it out;
+    /// that is the host's choice and is honoured.
+    ///
+    /// A file that cannot be used is not replaced by Contour's defaults. If the path is missing, is
+    /// not a readable file, is not a YAML mapping, or names a default profile it does not define, the
+    /// Runtime uses the built-in embed profile instead and creates nothing at the path. It reports
+    /// why on Contour's `error` logging category, which a process that has not turned Contour's
+    /// logging on does not print.
+    ///
+    /// Whichever configuration is loaded, only the profile sessions start in is kept and
+    /// `live_config` is not honoured: a child can ask for a profile by name, so none is left for it
+    /// to ask for.
     std::filesystem::path configFile;
 };
 
