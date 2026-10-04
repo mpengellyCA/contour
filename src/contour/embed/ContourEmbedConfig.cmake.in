@@ -3,5 +3,22 @@
 include(CMakeFindDependencyMacro)
 find_dependency(Qt6 COMPONENTS Core Gui Qml Quick)
 
+# The library is compiled against Qt's private headers, which promise nothing from one minor
+# release to the next. So it is usable only with the Qt minor it was built against, and a consumer
+# that found another is refused here, at configure time, rather than left to misbehave at run time.
+set(ContourEmbed_QT_VERSION "@Qt6_VERSION@")
+string(REGEX MATCH "^[0-9]+\\.[0-9]+" _contour_embed_built_qt "${ContourEmbed_QT_VERSION}")
+string(REGEX MATCH "^[0-9]+\\.[0-9]+" _contour_embed_found_qt "${Qt6_VERSION}")
+if(NOT _contour_embed_built_qt STREQUAL _contour_embed_found_qt)
+    set(${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
+    set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE
+        "ContourEmbed was built against Qt ${ContourEmbed_QT_VERSION} and uses its private headers, so it needs Qt ${_contour_embed_built_qt}.x; this project found Qt ${Qt6_VERSION}. Rebuild ContourEmbed against that Qt.")
+    unset(_contour_embed_built_qt)
+    unset(_contour_embed_found_qt)
+    return()
+endif()
+unset(_contour_embed_built_qt)
+unset(_contour_embed_found_qt)
+
 include("${CMAKE_CURRENT_LIST_DIR}/ContourEmbedTargets.cmake")
 check_required_components(ContourEmbed)

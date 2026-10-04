@@ -37,6 +37,12 @@ install(EXPORT ContourEmbedTargets NAMESPACE Contour:: FILE ContourEmbedTargets.
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ContourEmbed COMPONENT embed)
 set_target_properties(contour_embed PROPERTIES EXPORT_NAME Embed)
 
+# The package configuration records Qt6_VERSION and refuses a consumer whose Qt is another minor:
+# the library reads Qt's private headers. The version file below cannot say this -- SameMinorVersion
+# compares Contour's own version, not Qt's.
+if(NOT Qt6_VERSION)
+    message(FATAL_ERROR "CONTOUR_EMBED_LIBRARY needs Qt6_VERSION, which find_package(Qt6) sets")
+endif()
 configure_package_config_file(ContourEmbedConfig.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/ContourEmbedConfig.cmake"
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ContourEmbed)
