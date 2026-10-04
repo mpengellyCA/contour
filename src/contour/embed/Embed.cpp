@@ -102,6 +102,21 @@ namespace
         Drained _drained;
     };
 
+    /// Leaves @p config with one profile, and no way back to the others.
+    ///
+    /// A child can ask a session for any profile the configuration holds by name (DCS $ p), and no
+    /// permission is consulted. Loading always leaves Contour's own default profile, "main", beside
+    /// whatever the file defines, and "main" allows what the embed profile denies. So every profile
+    /// but the chosen one is removed, and live reload is switched off: a reload reads the file again,
+    /// and with it the profiles removed here.
+    /// @param config The loaded configuration.
+    /// @param chosen The name of the profile sessions start in.
+    void keepOnlyProfile(config::Config& config, std::string const& chosen)
+    {
+        std::erase_if(config.profiles.value(), [&](auto const& profile) { return profile.first != chosen; });
+        config.live.value() = false;
+    }
+
 } // namespace
 
 struct Runtime::Impl
@@ -141,6 +156,8 @@ Runtime::Runtime(RuntimeOptions options, QObject* parent):
     }
     else
         config::loadConfigFromFile(_impl->app->config(), _impl->options.configFile);
+
+    keepOnlyProfile(_impl->app->config(), _impl->app->profileName());
 
     display::TerminalAccessible::installFactory();
     qmlRegisterType<display::TerminalDisplay>("Contour.Terminal", 1, 0, "ContourTerminal");

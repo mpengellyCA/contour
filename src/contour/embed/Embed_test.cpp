@@ -98,6 +98,37 @@ TEST_CASE("embed: a child cannot write the clipboard", "[contour][embed]")
     CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("the host's"));
 }
 
+TEST_CASE("embed: a child cannot switch to a profile the host did not choose", "[contour][embed]")
+{
+    // DCS $ p <name> ST asks the session for another of the configuration's profiles, and no
+    // permission stands in its way. Contour's own default profile, "main", is what a child would ask
+    // for: it allows the clipboard write the embed profile denies.
+    contour::test::FakeDisplaySurface surface;
+    // A display runs what a session posts on the GUI thread, so the posts are held and drained here.
+    // Run where they are made they would be on the terminal's thread, inside the lock a profile
+    // switch takes.
+    surface.runPostsImmediately = false;
+    QGuiApplication::clipboard()->setText(QStringLiteral("the host's"));
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    surface.attachedSession = session;
+    session->attachDisplay(surface);
+    surface.drainPosts();
+    auto const chosen = session->profileName();
+
+    terminal.feed("\033P$pmain\033\\switched");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("switched")); }));
+    surface.drainPosts();
+    CHECK(session->profileName() == chosen);
+    CHECK(session->profile().permissions.value().writeClipboard == contour::config::Permission::Deny);
+
+    terminal.feed("\033]52;c;c3RvbGVu\033\\done");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("done")); }));
+    surface.drainPosts();
+    CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("the host's"));
+}
+
 TEST_CASE("embed: a child cannot raise a desktop notification", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };
