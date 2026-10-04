@@ -11,14 +11,18 @@
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QFile>
 #include <QtCore/QTemporaryDir>
+#include <QtCore/QThread>
 #include <QtGui/QClipboard>
 #include <QtGui/QGuiApplication>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <filesystem>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <thread>
 
 #include <QtTest/QSignalSpy>
 
@@ -120,6 +124,39 @@ TEST_CASE("embed: what the terminal writes reaches the host", "[contour][embed]"
     terminal.feed("\033[c");
     REQUIRE(eventually([&] { return !written.isEmpty(); }));
     CHECK(written.first().first().toByteArray().startsWith("\033[?"));
+}
+
+TEST_CASE("embed: a terminal fed from another thread shows it, and answers on the GUI thread",
+          "[contour][embed][threading]")
+{
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto const* const gui = QThread::currentThread();
+    // Counted where the signal is emitted, which a direct connection runs in: on the GUI thread or not.
+    auto onGuiThread = std::atomic<int> { 0 };
+    auto elsewhere = std::atomic<int> { 0 };
+    QObject::connect(
+        &terminal,
+        &Terminal::input,
+        &terminal,
+        [&] { ++(QThread::currentThread() == gui ? onGuiThread : elsewhere); },
+        Qt::DirectConnection);
+
+    // One byte per call, so the order of the calls is the order of the text, and then a question
+    // every terminal answers. The GUI thread meanwhile does what a host's does: runs its event loop.
+    static constexpr auto Text = std::string_view { "fed from another thread, one byte at a time" };
+    auto feeder = std::jthread { [&terminal] {
+        terminal.feed("\033[2J\033[H");
+        for (auto const& byte: Text)
+            terminal.feed(QByteArrayView { &byte, 1 });
+        terminal.feed("\033[c");
+    } };
+
+    CHECK(eventually(
+        [&] { return terminal.mainPageText().contains(QString::fromUtf8(Text.data(), Text.size())); }));
+    REQUIRE(eventually([&] { return onGuiThread.load() + elsewhere.load() > 0; }));
+    feeder.join();
+    CHECK(onGuiThread.load() > 0);
+    CHECK(elsewhere.load() == 0);
 }
 
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
