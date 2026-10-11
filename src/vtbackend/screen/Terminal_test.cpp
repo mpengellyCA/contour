@@ -2245,6 +2245,38 @@ TEST_CASE("Terminal.GraphemeCluster.aWideCellOnTheLastColumnKeepsItsWidth", "[te
     CHECK(selected == unselected);
 }
 
+TEST_CASE("Terminal.GraphemeCluster.aFlagIsOneCellWhereverItIsWritten", "[terminal][unicode]")
+{
+    // A flag is two regional indicators and one cluster (GB12, GB13). It was one cell only as the
+    // very first thing a terminal was given: after any other character the pair was split into two
+    // cells, each drawn as a boxed letter.
+    auto mock = MockTerm { PageSize { LineCount(4), ColumnCount(12) }, LineCount(0) };
+    auto& screen = mock.terminal.primaryScreen();
+    auto const codepointsAt = [&](int line, int column) {
+        return screen.at(LineOffset(line), ColumnOffset(column)).codepointCount();
+    };
+
+    mock.writeToScreen("\U0001F1E8\U0001F1E6x\r\n"sv); // first: always was one cell
+    CHECK(codepointsAt(0, 0) == 2);
+    CHECK(screen.at(LineOffset(0), ColumnOffset(2)).codepoint(0) == U'x');
+
+    mock.writeToScreen("ab\U0001F1E8\U0001F1E6x\r\n"sv); // after other text
+    CHECK(codepointsAt(1, 2) == 2);
+    CHECK(screen.at(LineOffset(1), ColumnOffset(4)).codepoint(0) == U'x');
+
+    mock.writeToScreen("\U0001F1E8\U0001F1E6\U0001F1E9\U0001F1EA!\r\n"sv); // two in a row are two
+    CHECK(codepointsAt(2, 0) == 2);
+    CHECK(codepointsAt(2, 2) == 2);
+    CHECK(screen.at(LineOffset(2), ColumnOffset(2)).codepoint(0) == char32_t { 0x1F1E9 });
+    CHECK(screen.at(LineOffset(2), ColumnOffset(4)).codepoint(0) == U'!');
+
+    // One codepoint at a time, as a child that writes a byte at a time has it arrive.
+    mock.writeToScreen("z"sv);
+    mock.writeToScreen("\U0001F1E8"sv);
+    mock.writeToScreen("\U0001F1E6"sv);
+    CHECK(codepointsAt(3, 1) == 2);
+}
+
 TEST_CASE("Terminal.GraphemeCluster.batchedFallbackDoesNotInheritTheCursor", "[terminal][unicode]")
 {
     // makeColorsForCell extends a block cursor over the second column of a wide glyph by consulting

@@ -602,7 +602,7 @@ void Screen::writeText(string_view text, size_t cellCount)
                 unicode::grapheme_process_init(cp, localGraphemeState);
                 writeCharToCurrentAndAdvance(cp);
             }
-            else if (unicode::grapheme_process_breakable(cp, localGraphemeState))
+            else if (beginsGraphemeCluster(cp, localGraphemeState))
             {
                 writeCharToCurrentAndAdvance(cp);
             }
@@ -748,7 +748,7 @@ void Screen::writeTextInternal(char32_t sourceCodepoint)
         unicode::grapheme_process_init(codepoint, graphemeState);
         writeCharToCurrentAndAdvance(codepoint);
     }
-    else if (unicode::grapheme_process_breakable(codepoint, graphemeState))
+    else if (beginsGraphemeCluster(codepoint, graphemeState))
     {
         writeCharToCurrentAndAdvance(codepoint);
     }

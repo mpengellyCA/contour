@@ -288,3 +288,20 @@ TEST_CASE("fillWideCharContinuation.basic", "[SoAWriter]")
     CHECK(line.sgr[1].flags.contains(CellFlag::WideCharContinuation));
     CHECK(line.sgr[1].foregroundColor == Color::Indexed(2));
 }
+
+TEST_CASE("writeTextToSoA.utf8.aFlagAfterOtherTextIsOneCell", "[SoAWriter]")
+{
+    LineSoA line;
+    initializeLineSoA(line, ColumnCount(20));
+
+    // U+1F1E8 U+1F1E6, twice, after a letter: two cells of two codepoints each.
+    auto const written =
+        writeTextToSoA(line, 0, "a\xF0\x9F\x87\xA8\xF0\x9F\x87\xA6\xF0\x9F\x87\xA9\xF0\x9F\x87\xAA"sv, {});
+
+    CHECK(written == 5);
+    CHECK(line.codepoints[0] == U'a');
+    CHECK(line.codepoints[1] == char32_t { 0x1F1E8 });
+    CHECK(line.clusterSize[1] == 2);
+    CHECK(line.codepoints[3] == char32_t { 0x1F1E9 });
+    CHECK(line.clusterSize[3] == 2);
+}

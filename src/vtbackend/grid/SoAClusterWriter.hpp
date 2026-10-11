@@ -19,6 +19,25 @@
 namespace vtbackend
 {
 
+/// Whether @p codepoint begins a grapheme cluster after what @p state has seen. Advances the state.
+///
+/// A codepoint that begins a cluster begins the state afresh. The segmenter counts a regional
+/// indicator only when it is initialised with one, so left to carry on it splits every flag that
+/// follows another character into two clusters; and no rule reaches back across a boundary, so
+/// nothing is lost by starting over at one.
+///
+/// @param codepoint The next codepoint.
+/// @param state     The segmenter's state, initialised with the first codepoint written.
+/// @return True when @p codepoint starts a new cluster, false when it joins the one before it.
+[[nodiscard]] inline bool beginsGraphemeCluster(char32_t codepoint,
+                                                unicode::grapheme_segmenter_state& state) noexcept
+{
+    if (!unicode::grapheme_process_breakable(codepoint, state))
+        return false;
+    unicode::grapheme_process_init(codepoint, state);
+    return true;
+}
+
 /// Populate a LineSoA from UTF-8 text.
 ///
 /// This is the core write path for the SoA grid. It decodes UTF-8,

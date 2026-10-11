@@ -127,7 +127,7 @@ namespace
                     unicode::grapheme_process_init(codepoint, graphemeState);
                     return true;
                 }
-                return unicode::grapheme_process_breakable(codepoint, graphemeState);
+                return beginsGraphemeCluster(codepoint, graphemeState);
             }();
 
             if (startsNewCluster)
