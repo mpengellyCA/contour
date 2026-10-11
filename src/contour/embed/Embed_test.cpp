@@ -361,7 +361,8 @@ TEST_CASE("embed: a host searches, steps between the matches and ends the search
 
     QSignalSpy changed { &terminal, &Terminal::searchChanged };
     terminal.setSearchPattern(QStringLiteral("needle"));
-    CHECK_FALSE(changed.isEmpty());
+    CHECK(changed.isEmpty()); // told from the event loop, not from inside the call
+    CHECK(eventually([&] { return !changed.isEmpty(); }));
     auto state = terminal.searchState();
     CHECK(state.pattern == QStringLiteral("needle"));
     CHECK(state.matches == 3);
@@ -740,6 +741,44 @@ TEST_CASE("embed: nothing is written beside a host's configuration file, and not
     CHECK(entries == 1); // contour.yml, as written above
 
     CHECK_FALSE(session->app().speechSynthesizer().available());
+}
+
+TEST_CASE("embed: a host told the view moved may ask the terminal anything", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 4 } };
+    terminal.feed("needle\r\n");
+    for (auto const line: std::views::iota(1, 13))
+        terminal.feed(QByteArray("line ") + QByteArray::number(line) + (line == 12 ? "" : "\r\n"));
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("line 12")); }));
+
+    // A host draws its scrollbar and its search field from what it is told, by asking. Told from
+    // inside the call that moved the view, it would be asking a terminal that is still busy with
+    // that call -- so it is told afterwards, from the event loop.
+    auto inside = false;
+    auto toldInside = 0;
+    auto told = 0;
+    auto read = -1;
+    auto const ask = [&] {
+        if (inside)
+        {
+            ++toldInside;
+            return;
+        }
+        ++told;
+        read = terminal.historyLineCount() + terminal.scrollOffset() + terminal.searchState().matches;
+    };
+    QObject::connect(&terminal, &Terminal::scrollChanged, &terminal, ask);
+    QObject::connect(&terminal, &Terminal::searchChanged, &terminal, ask);
+
+    inside = true;
+    terminal.setSearchPattern(QStringLiteral("needle")); // scrolls to the match, far above the page
+    terminal.setScrollOffset(2);
+    inside = false;
+
+    REQUIRE(eventually([&] { return told >= 2; }));
+    CHECK(toldInside == 0);
+    CHECK(read >= 0);
+    terminal.setSearchPattern({});
 }
 
 TEST_CASE("embed: a terminal destroyed with the focus does not keep it", "[contour][embed]")

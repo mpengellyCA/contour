@@ -310,12 +310,14 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     void pageSizeRequested(QSize page);
 
     /// searchState() may differ: the pattern changed, the search moved, or output added or removed
-    /// a match. Emitted on the GUI thread.
+    /// a match. Emitted on the GUI thread, from the event loop: never from inside a call into this
+    /// object, so a slot may ask it anything.
     void searchChanged();
 
     /// The view moved, or -- once a display is attached -- a line left the top of the page:
-    /// scrollOffset() or historyLineCount() may differ. Emitted on the GUI thread. A host draws its
-    /// own scrollbar from the two. With no display there is nothing to draw one beside, and a
+    /// scrollOffset() or historyLineCount() may differ. Emitted on the GUI thread, from the event
+    /// loop: never from inside a call into this object, so a slot may ask it anything. A host draws
+    /// its own scrollbar from the two. With no display there is nothing to draw one beside, and a
     /// terminal that is only fed says nothing about its history growing.
     void scrollChanged();
 

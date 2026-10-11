@@ -385,15 +385,25 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
             this,
             [this](int columns, int lines) { emit pageSizeRequested(QSize { columns, lines }); });
 
-    connect(
-        _impl->session.get(), &session::TerminalSession::scrollOffsetChanged, this, &Terminal::scrollChanged);
+    // Queued, all three. The session announces a view that moved and a search that changed from
+    // inside the call that did it, with the terminal locked: its own properties are written to be
+    // read there without the lock. A host's slot asks this object, whose answers take the lock, so
+    // it is told from the event loop instead, once the call has returned.
+    connect(_impl->session.get(),
+            &session::TerminalSession::scrollOffsetChanged,
+            this,
+            &Terminal::scrollChanged,
+            Qt::QueuedConnection);
     connect(_impl->session.get(),
             &session::TerminalSession::historyLineCountChanged,
             this,
-            &Terminal::scrollChanged);
-
-    connect(
-        _impl->session.get(), &session::TerminalSession::searchStateChanged, this, &Terminal::searchChanged);
+            &Terminal::scrollChanged,
+            Qt::QueuedConnection);
+    connect(_impl->session.get(),
+            &session::TerminalSession::searchStateChanged,
+            this,
+            &Terminal::searchChanged,
+            Qt::QueuedConnection);
 
     // A display starts the session when one is attached. A host may feed a terminal that has no
     // display yet, so it is started here; start() is a no-op the second time.
