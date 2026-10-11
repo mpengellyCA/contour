@@ -2766,11 +2766,13 @@ profiles:
     auto const* profile = config.profile("main");
     REQUIRE(profile != nullptr);
     auto const& frozen = profile->frozenModes.value();
-    // 25 (cursor visibility) and 2004 (bracketed paste) are valid DEC modes.
-    CHECK(frozen.at(static_cast<vtbackend::DECMode>(25)) == true);
-    CHECK(frozen.at(static_cast<vtbackend::DECMode>(2004)) == false);
+    // 25 (cursor visibility) and 2004 (bracketed paste) are valid DEC modes, and each is stored as the
+    // mode its number denotes. 2004 is the one that tells: its number is not its place in the
+    // enumeration, so a key that was cast instead of looked up froze some other mode, or none.
+    REQUIRE(frozen.size() == 2);
+    CHECK(frozen.at(vtbackend::DECMode::VisibleCursor) == true);
+    CHECK(frozen.at(vtbackend::DECMode::BracketedPaste) == false);
     // 999999 is not a valid DEC mode: skipped, so never stored.
-    CHECK(!frozen.contains(static_cast<vtbackend::DECMode>(999999)));
 }
 
 TEST_CASE("Config: input_mapping match modes parse every flag arm", "[config]")

@@ -1937,15 +1937,20 @@ void YAMLConfigReader::loadFromEntry(YAML::Node const& node,
         {
             for (auto const& modeNode: frozenDecModes)
             {
+                // The key is a DEC private mode NUMBER, which is not a DECMode's value: the number has
+                // to be looked up. Cast instead, ?2004 froze whatever mode sat at 2004 modulo the
+                // enumeration's width, and usually none.
                 auto const modeNumber = std::stoi(modeNode.first.as<string>());
-                if (!vtbackend::isValidDECMode(modeNumber))
+                auto const mode = modeNumber < 0
+                                      ? std::nullopt
+                                      : vtbackend::fromDECModeNum(static_cast<unsigned>(modeNumber));
+                if (!mode)
                 {
                     logger()("Invalid frozen_dec_modes entry: {} (Invalid DEC mode number).", modeNumber);
                     continue;
                 }
-                auto const mode = static_cast<vtbackend::DECMode>(modeNumber);
                 auto const frozenState = modeNode.second.as<bool>();
-                where[mode] = frozenState;
+                where[*mode] = frozenState;
             }
         }
         else
