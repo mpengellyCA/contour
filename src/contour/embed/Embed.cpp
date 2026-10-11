@@ -510,6 +510,20 @@ QString Terminal::selectionText() const
     return QString::fromStdString(terminal.extractSelectionText());
 }
 
+bool Terminal::scrollToPreviousMark()
+{
+    auto& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    return terminal.viewport().scrollMarkUp();
+}
+
+bool Terminal::scrollToNextMark()
+{
+    auto& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    return terminal.viewport().scrollMarkDown();
+}
+
 QString Terminal::mainPageText() const
 {
     // The terminal's own thread is writing the page this reads.

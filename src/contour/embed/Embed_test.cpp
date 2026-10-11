@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -313,6 +314,36 @@ TEST_CASE("embed: a host selects, reads what it selected, and nothing is copied 
 
     QCoreApplication::processEvents();
     CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("the host's"));
+}
+
+TEST_CASE("embed: a host scrolls from mark to mark", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 4 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    // Twelve lines on a page of four, with a mark set on the third and on the seventh.
+    for (auto const line: std::views::iota(1, 13))
+    {
+        if (line == 3 || line == 7)
+            terminal.feed("\033]133;A\033\\");
+        terminal.feed(QByteArray("line ") + QByteArray::number(line) + (line == 12 ? "" : "\r\n"));
+    }
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("line 12")); }));
+    CHECK(session->scrollOffset() == 0);
+
+    // Lines 9 to 12 are shown, so eight lines are above. The seventh is two lines up.
+    REQUIRE(terminal.scrollToPreviousMark());
+    CHECK(session->scrollOffset() == 2);
+    REQUIRE(terminal.scrollToPreviousMark());
+    CHECK(session->scrollOffset() == 6);
+    CHECK_FALSE(terminal.scrollToPreviousMark());
+    CHECK(session->scrollOffset() == 6);
+
+    REQUIRE(terminal.scrollToNextMark());
+    CHECK(session->scrollOffset() == 2);
+    // No mark below: the bottom.
+    REQUIRE(terminal.scrollToNextMark());
+    CHECK(session->scrollOffset() == 0);
 }
 
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")

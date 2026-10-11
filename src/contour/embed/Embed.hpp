@@ -230,6 +230,16 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// @return The text, lines separated by a line feed; empty when nothing is selected.
     [[nodiscard]] QString selectionText() const;
 
+    /// Scrolls back to the nearest mark above the top of what is shown. A mark is a line a shell
+    /// said its prompt starts on (OSC 133 ; A).
+    /// @return Whether the view moved; false when there is no mark above.
+    bool scrollToPreviousMark();
+
+    /// Scrolls forward to the nearest mark below the top of what is shown, or to the bottom when
+    /// there is none.
+    /// @return Whether the view moved.
+    bool scrollToNextMark();
+
   signals:
     /// Bytes for the child: keys, pastes, mouse reports and replies. Emitted on the GUI thread.
     void input(QByteArray const& bytes);
