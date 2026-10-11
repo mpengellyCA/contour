@@ -1232,6 +1232,16 @@ struct TerminalProfile
 struct Config
 {
     std::filesystem::path configFile {};
+
+    /// Why the file's top-level entries stopped being read, when they did.
+    ///
+    /// The entries are read in a fixed order and the first one of the wrong type ends the reading:
+    /// it and every entry after it keep the value this struct was constructed with. That is the
+    /// forgiving behaviour a user editing their own file wants, and it is reported on the error
+    /// log -- but a caller for whom "the rest is Contour's defaults" is not acceptable has to be
+    /// able to tell, and a log line is not something code can ask. Empty after a load that read
+    /// every entry.
+    std::optional<std::string> loadFailure {};
     ConfigEntry<std::string, documentation::PlatformPlugin> platformPlugin { "auto" };
     ConfigEntry<RendererConfig, documentation::Renderer> renderer {};
     ConfigEntry<std::string, documentation::WordDelimiters> wordDelimiters {

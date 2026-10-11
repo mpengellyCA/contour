@@ -172,6 +172,12 @@ namespace
             {
                 return std::unexpected(std::string { e.what() });
             }
+            // The loader stops at the first top-level entry it cannot read and leaves it, and every
+            // entry it had not reached yet, at Contour's default. The key bindings are read last, so
+            // one mistyped scalar anywhere above them is Contour's whole default keymap.
+            if (config.loadFailure)
+                return std::unexpected(
+                    std::format("an entry in it could not be read ({})", *config.loadFailure));
             if (config.findProfile(app.profileName()) == nullptr)
                 return std::unexpected(std::format("it defines no profile named '{}'", app.profileName()));
             return {};

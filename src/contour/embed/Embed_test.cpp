@@ -631,6 +631,29 @@ TEST_CASE("embed: a host's configuration file that does not parse leaves the bui
     }
 }
 
+TEST_CASE("embed: a host's configuration file with an entry of the wrong type leaves the built-in standing",
+          "[contour][embed]")
+{
+    // The loader stops at the entry it cannot read. The profile and the key bindings come after it,
+    // so without the refusal this file -- which binds no keys and names its own profile -- would
+    // run on Contour's default profile's settings for everything unread and Contour's keymap.
+    QTemporaryDir const directory;
+    REQUIRE(directory.isValid());
+    auto const loaded = loadedFrom(writeConfig(directory,
+                                               "default_profile: host\n"
+                                               "read_buffer_size: [not, a, number]\n"
+                                               "profiles:\n"
+                                               "    host:\n"
+                                               "        permissions:\n"
+                                               "            write_clipboard: allow\n"
+                                               "input_mapping: []\n"));
+    CHECK(loaded.inputMappings == 0);
+    CHECK(loaded.profile == "embed");
+    CHECK(loaded.writeClipboard == contour::config::Permission::Deny);
+    CHECK(loaded.reported.contains("could not be read"));
+    CHECK(loaded.reported.contains("built-in embed profile"));
+}
+
 TEST_CASE("embed: a host's configuration file that parses is the host's to write", "[contour][embed]")
 {
     // What such a file says is used as it stands, including a permission the built-in profile denies.

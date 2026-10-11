@@ -877,6 +877,7 @@ void loadConfigFromFile(Config& config, fs::path const& fileName)
     auto logger = configLog;
     logger()("Loading configuration from file: {} ", fileName.string());
     config.configFile = fileName;
+    config.loadFailure.reset();
     createFileIfNotExists(config.configFile);
 
     // A live reload reuses the same Config object rather than a fresh one (see reloadAllSessions), so the
@@ -1094,6 +1095,7 @@ void YAMLConfigReader::load(Config& c)
     }
     catch (std::exception const& e)
     {
+        c.loadFailure = e.what();
         errorLog()("Something went wrong during config file loading, check `contour debug config` output "
                    "for more info");
     }

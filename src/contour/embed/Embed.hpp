@@ -48,8 +48,9 @@ struct RuntimeOptions
     /// that is the host's choice and is honoured.
     ///
     /// A file that cannot be used is not replaced by Contour's defaults. If the path is missing, is
-    /// not a readable file, is not a YAML mapping, or names a default profile it does not define, the
-    /// Runtime uses the built-in embed profile instead and creates nothing at the path. It reports
+    /// not a readable file, is not a YAML mapping, holds a top-level entry of the wrong type, or
+    /// names a default profile it does not define, the Runtime uses the built-in embed profile
+    /// instead and creates nothing at the path. It reports
     /// why on Contour's `error` logging category, which a process that has not turned Contour's
     /// logging on does not print.
     ///
