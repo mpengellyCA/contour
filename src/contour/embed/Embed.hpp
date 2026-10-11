@@ -252,6 +252,15 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// @return The text, lines separated by a line feed; empty when nothing is selected.
     [[nodiscard]] QString selectionText() const;
 
+    /// How far back the view is: the number of lines between the bottom of what is shown and the
+    /// bottom of the page. 0 is the page itself, and historyLineCount() is as far back as there is.
+    /// @return The offset.
+    [[nodiscard]] int scrollOffset() const;
+
+    /// Scrolls the view to @p lines back from the page.
+    /// @param lines The offset wanted; one outside 0 to historyLineCount() is brought inside it.
+    void setScrollOffset(int lines);
+
     /// Scrolls back to the nearest mark above the top of what is shown. A mark is a line a shell
     /// said its prompt starts on (OSC 133 ; A).
     /// @return Whether the view moved; false when there is no mark above.
@@ -271,6 +280,12 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// differs from the last one given. The terminal is not resized: the host decides whether to
     /// call setPageSize(), and whether the child is told.
     void pageSizeRequested(QSize page);
+
+    /// The view moved, or -- once a display is attached -- a line left the top of the page:
+    /// scrollOffset() or historyLineCount() may differ. Emitted on the GUI thread. A host draws its
+    /// own scrollbar from the two. With no display there is nothing to draw one beside, and a
+    /// terminal that is only fed says nothing about its history growing.
+    void scrollChanged();
 
   private:
     struct Impl;

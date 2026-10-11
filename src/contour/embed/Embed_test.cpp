@@ -327,6 +327,29 @@ TEST_CASE("embed: a host selects, reads what it selected, and nothing is copied 
     CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("the host's"));
 }
 
+TEST_CASE("embed: a host scrolls the view, and is told when it moved", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 4 } };
+    QSignalSpy moved { &terminal, &Terminal::scrollChanged };
+    // Twelve lines on a page of four: eight have left the top.
+    for (auto const line: std::views::iota(1, 13))
+        terminal.feed(QByteArray("line ") + QByteArray::number(line) + (line == 12 ? "" : "\r\n"));
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("line 12")); }));
+    REQUIRE(terminal.historyLineCount() == 8);
+    CHECK(terminal.scrollOffset() == 0);
+
+    moved.clear();
+    terminal.setScrollOffset(3);
+    CHECK(terminal.scrollOffset() == 3);
+    REQUIRE(eventually([&] { return moved.size() == 1; }));
+
+    // Past either end is the end.
+    terminal.setScrollOffset(500);
+    CHECK(terminal.scrollOffset() == 8);
+    terminal.setScrollOffset(-2);
+    CHECK(terminal.scrollOffset() == 0);
+}
+
 TEST_CASE("embed: a host scrolls from mark to mark", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 20, 4 } };

@@ -382,6 +382,13 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
             this,
             [this](int columns, int lines) { emit pageSizeRequested(QSize { columns, lines }); });
 
+    connect(
+        _impl->session.get(), &session::TerminalSession::scrollOffsetChanged, this, &Terminal::scrollChanged);
+    connect(_impl->session.get(),
+            &session::TerminalSession::historyLineCountChanged,
+            this,
+            &Terminal::scrollChanged);
+
     // A display starts the session when one is attached. A host may feed a terminal that has no
     // display yet, so it is started here; start() is a no-op the second time.
     _impl->running = _impl->session.get();
@@ -600,6 +607,16 @@ QString Terminal::selectionText() const
     if (!terminal.selectionAvailable())
         return {};
     return QString::fromStdString(terminal.extractSelectionText());
+}
+
+int Terminal::scrollOffset() const
+{
+    return _impl->session->scrollOffset();
+}
+
+void Terminal::setScrollOffset(int lines)
+{
+    _impl->session->setScrollOffset(std::clamp(lines, 0, historyLineCount()));
 }
 
 bool Terminal::scrollToPreviousMark()
