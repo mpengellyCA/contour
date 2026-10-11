@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <contour/ContourGuiApp.hpp>
+#include <contour/config/Actions.hpp>
 #include <contour/embed/Embed.hpp>
 #include <contour/platform/Notifier.hpp>
 #include <contour/session/TerminalSession.hpp>
@@ -24,6 +26,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <variant>
 
 #include <QtTest/QSignalSpy>
 
@@ -576,6 +579,107 @@ TEST_CASE("embed: a child cannot raise a desktop notification", "[contour][embed
     // a display or a permission to reach the notifier, so the notifier is all there is to refuse them.
     terminal.feed("\033]777;notify;Build;done\033\\\033]99;i=1;Build done\033\\notified");
     CHECK(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("notified")); }));
+}
+
+TEST_CASE("embed: a bell raises no window alert", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 2 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    QSignalSpy const alerts { session, &contour::session::TerminalSession::onAlert };
+    QSignalSpy const bells { session, &contour::session::TerminalSession::onBell };
+    terminal.feed("\arung");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("rung")); }));
+    QCoreApplication::processEvents();
+    // The control: the bell was heard by the session, so an alert had its chance.
+    CHECK(bells.size() == 1);
+    CHECK(alerts.isEmpty());
+}
+
+TEST_CASE("embed: a child cannot take the mouse or the page width", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    // Every mouse protocol, then 132 columns with the mode that allows it; ?2004 is the control,
+    // a mode nothing freezes.
+    terminal.feed("\033[?9h\033[?1000h\033[?1001h\033[?1002h\033[?1003h\033[?2029h"
+                  "\033[?40h\033[?3h\033[?2004h"
+                  "asked");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("asked")); }));
+
+    auto const lock = std::scoped_lock { session->terminal() };
+    using vtbackend::DECMode;
+    CHECK(session->terminal().isModeEnabled(DECMode::BracketedPaste));
+    for (auto const mode: { DECMode::MouseProtocolX10,
+                            DECMode::MouseProtocolNormalTracking,
+                            DECMode::MouseProtocolHighlightTracking,
+                            DECMode::MouseProtocolButtonTracking,
+                            DECMode::MouseProtocolAnyEventTracking,
+                            DECMode::MousePassiveTracking,
+                            DECMode::Columns132 })
+    {
+        CAPTURE(mode);
+        CHECK_FALSE(session->terminal().isModeEnabled(mode));
+    }
+    CHECK(session->terminal().pageSize().columns == vtbackend::ColumnCount(80));
+}
+
+TEST_CASE("embed: nothing is written beside a host's configuration file, and nothing is spoken",
+          "[contour][embed]")
+{
+    QTemporaryDir const directory;
+    REQUIRE(directory.isValid());
+    Runtime host { RuntimeOptions { .configFile = writeConfig(directory,
+                                                              "default_profile: host\n"
+                                                              "profiles:\n"
+                                                              "    host: {}\n"
+                                                              "input_mapping: []\n") } };
+    Terminal const terminal { host, QSize { 20, 2 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+
+    // What the command palette does when a command is run from it, and what SaveLayout does.
+    session->app().sessionsManager().recordCommand("ScrollPageUp");
+    (void) (*session)(contour::actions::SaveLayout { .name = "kept" });
+    QCoreApplication::processEvents();
+
+    auto const beside = std::filesystem::path { directory.path().toStdString() };
+    CHECK_FALSE(std::filesystem::exists(beside / "command-history.yml"));
+    CHECK_FALSE(std::filesystem::exists(beside / "layouts.yml"));
+    auto entries = 0;
+    for ([[maybe_unused]] auto const& entry: std::filesystem::directory_iterator { beside })
+        ++entries;
+    CHECK(entries == 1); // contour.yml, as written above
+
+    CHECK_FALSE(session->app().speechSynthesizer().available());
+}
+
+TEST_CASE("embed: a binding cannot reload or reset the configuration", "[contour][embed]")
+{
+    // ReloadConfig reads the file again, and with it the profiles a Runtime removes; ResetConfig
+    // overwrites the file. A binding to either is dropped, alone or beside another action, and a
+    // binding that is neither is kept.
+    QTemporaryDir const directory;
+    REQUIRE(directory.isValid());
+    auto const file = writeConfig(directory,
+                                  "default_profile: host\n"
+                                  "profiles:\n"
+                                  "    host: {}\n"
+                                  "input_mapping:\n"
+                                  "    - { mods: [Control], key: F5, action: ReloadConfig }\n"
+                                  "    - { mods: [Control], key: F6, action: ResetConfig }\n"
+                                  "    - { mods: [Control], key: F7, action: ScrollPageUp }\n");
+    Runtime host { RuntimeOptions { .configFile = file } };
+    Terminal const terminal { host, QSize { 20, 2 } };
+    auto const* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+
+    auto const& keys = session->config().inputMappings.value().keyMappings;
+    REQUIRE(keys.size() == 1);
+    REQUIRE(keys.front().binding.size() == 1);
+    CHECK(std::holds_alternative<contour::actions::ScrollPageUp>(keys.front().binding.front()));
+    CHECK(session->config().profiles.value().size() == 1);
 }
 
 TEST_CASE("embed: no default key binding survives", "[contour][embed]")

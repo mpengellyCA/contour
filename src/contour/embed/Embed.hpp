@@ -40,7 +40,8 @@ namespace contour::embed
 struct RuntimeOptions
 {
     /// A Contour configuration file. Empty means the built-in embed profile: no status line, no
-    /// key bindings, no scrollbar, and every child-requested permission denied.
+    /// key bindings, no scrollbar, every child-requested permission denied, no sound, no window
+    /// alert, no images, and the mouse-reporting and 132-column modes frozen off.
     ///
     /// A file that is named is read once, as a whole Contour configuration: what it does not say is
     /// Contour's default, not the built-in embed profile's. A file that parses may therefore bind
@@ -56,7 +57,9 @@ struct RuntimeOptions
     ///
     /// Whichever configuration is loaded, only the profile sessions start in is kept and
     /// `live_config` is not honoured: a child can ask for a profile by name, so none is left for it
-    /// to ask for.
+    /// to ask for. For the same reason a binding to ReloadConfig or ResetConfig is dropped: the one
+    /// brings the other profiles back and the other overwrites the file. Layouts and the command
+    /// history are kept nowhere, and nothing is spoken.
     std::filesystem::path configFile;
 };
 

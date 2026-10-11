@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <contour/ContourGuiApp.hpp>
+#include <contour/command/CommandHistoryStore.hpp>
+#include <contour/config/Actions.hpp>
 #include <contour/config/Config.hpp>
+#include <contour/config/LayoutStore.hpp>
 #include <contour/display/ShaderConfig.hpp>
 #include <contour/display/TerminalAccessible.hpp>
 #include <contour/display/TerminalDisplay.hpp>
@@ -8,6 +11,7 @@
 #include <contour/embed/EmbedConfig.yml.in.hpp>
 #include <contour/platform/ExternalLauncher.hpp>
 #include <contour/platform/Notifier.hpp>
+#include <contour/platform/SpeechSynthesizer.hpp>
 #include <contour/session/TerminalSession.hpp>
 #include <contour/session/TerminalSessionManager.hpp>
 
@@ -33,10 +37,13 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
+#include <vector>
 
 namespace contour::embed
 {
@@ -76,6 +83,44 @@ namespace
 
       private:
         Runtime& _runtime;
+    };
+
+    /// A layout store that holds nothing and keeps nothing.
+    ///
+    /// The application's own store is a file beside the configuration file. A host's configuration
+    /// lives in the host's directory, and the built-in one in a temporary directory that is gone
+    /// by the time anything is saved; neither is a place for this library to write.
+    class NoLayoutStore final: public config::LayoutStore
+    {
+      public:
+        [[nodiscard]] std::expected<config::LayoutMap, std::string> load(
+            std::filesystem::path const& /*path*/) const override
+        {
+            return config::LayoutMap {};
+        }
+
+        [[nodiscard]] std::expected<void, std::string> save(std::filesystem::path const& /*path*/,
+                                                            config::LayoutMap const& /*layouts*/) override
+        {
+            return std::unexpected(std::string { "an embedded terminal keeps no layouts" });
+        }
+    };
+
+    /// A command history that holds nothing and keeps nothing, for NoLayoutStore's reason.
+    class NoCommandHistoryStore final: public command::CommandHistoryStore
+    {
+      public:
+        [[nodiscard]] std::expected<std::vector<std::string>, std::string> load(
+            std::filesystem::path const& /*path*/) const override
+        {
+            return std::vector<std::string> {};
+        }
+
+        [[nodiscard]] std::expected<void, std::string> save(std::filesystem::path const& /*path*/,
+                                                            std::span<std::string const> /*ids*/) override
+        {
+            return std::unexpected(std::string { "an embedded terminal keeps no command history" });
+        }
     };
 
     /// A ChannelPty that says when the terminal has finished with what it was last given.
@@ -199,6 +244,29 @@ namespace
         config.live.value() = false;
     }
 
+    /// Takes the actions that read or rewrite the configuration file out of every binding.
+    ///
+    /// ReloadConfig loads the file afresh, and with it every profile keepOnlyProfile() removed --
+    /// Contour's own "main" among them, back within reach of a child's DCS $ p. ResetConfig
+    /// overwrites the host's file with Contour's defaults. A host's file may bind keys, and that is
+    /// honoured; these two undo what this library promises about any configuration, so a binding
+    /// to them is not. A binding left with nothing to do is removed.
+    /// @param mappings The loaded bindings.
+    void dropConfigurationActions(config::InputMappings& mappings)
+    {
+        auto const drop = [](auto& bindings) {
+            for (auto& binding: bindings)
+                std::erase_if(binding.binding, [](actions::Action const& action) {
+                    return std::holds_alternative<actions::ReloadConfig>(action)
+                           || std::holds_alternative<actions::ResetConfig>(action);
+                });
+            std::erase_if(bindings, [](auto const& binding) { return binding.binding.empty(); });
+        };
+        drop(mappings.keyMappings);
+        drop(mappings.charMappings);
+        drop(mappings.mouseMappings);
+    }
+
 } // namespace
 
 struct Runtime::Impl
@@ -216,7 +284,15 @@ Runtime::Runtime(RuntimeOptions options, QObject* parent):
 
     auto launcher = std::make_unique<AnnouncingLauncher>(*this);
     _impl->launcher = launcher.get();
-    _impl->app = std::make_unique<ContourGuiApp>(_impl->environment, nullptr, std::move(launcher));
+    // Stores that keep nothing and a synthesizer that cannot speak. Left to their defaults the
+    // application writes layouts.yml and command-history.yml beside the configuration file and
+    // opens the platform's speech service, none of which a host asked a terminal display to do.
+    _impl->app = std::make_unique<ContourGuiApp>(_impl->environment,
+                                                 nullptr,
+                                                 std::move(launcher),
+                                                 std::make_unique<NoLayoutStore>(),
+                                                 std::make_unique<NoCommandHistoryStore>(),
+                                                 std::make_unique<platform::NullSpeechSynthesizer>());
 
     // The terminal verb's parameters are what a session reads its defaults from. A host has no
     // command line of Contour's, so one is supplied.
@@ -240,6 +316,7 @@ Runtime::Runtime(RuntimeOptions options, QObject* parent):
     }
 
     keepOnlyProfile(config, _impl->app->profileName());
+    dropConfigurationActions(config.inputMappings.value());
 
     display::TerminalAccessible::installFactory();
     qmlRegisterType<display::TerminalDisplay>("Contour.Terminal", 1, 0, "ContourTerminal");
