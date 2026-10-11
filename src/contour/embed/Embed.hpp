@@ -156,6 +156,15 @@ struct Cursor
     bool visible = true; ///< Whether the child has it shown (DECTCEM).
 };
 
+/// What a search is standing on.
+struct SearchState
+{
+    QString pattern;     ///< What is being searched for; empty when nothing is.
+    int matches = 0;     ///< How many places it matches, in the scrollback and the page.
+    int current = 0;     ///< Which of them the search stands on, from 1 at the oldest; 0 when on none.
+    bool capped = false; ///< The count stopped at a limit: there are at least `matches`.
+};
+
 /// One terminal: an emulator and its screen, with no child process behind it.
 class CONTOUR_EMBED_API Terminal final: public QObject
 {
@@ -261,6 +270,25 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// @param lines The offset wanted; one outside 0 to historyLineCount() is brought inside it.
     void setScrollOffset(int lines);
 
+    /// Searches the scrollback and the page for @p pattern, lights every match, and moves the view
+    /// to the nearest one at or above the cursor. Letters match whatever their case unless the
+    /// pattern holds a capital. The library draws no search field: the host has its own.
+    /// @param pattern What to look for. An empty one ends the search and unlights the matches.
+    void setSearchPattern(QString const& pattern);
+
+    /// What the search stands on. Counting walks everything the terminal holds, so a host asks when
+    /// searchChanged() says to and not once a frame.
+    /// @return The state; a default-constructed one when nothing is being searched for.
+    [[nodiscard]] SearchState searchState() const;
+
+    /// Moves to the match after the one the search stands on, towards the bottom, and from the
+    /// last to the first.
+    void searchNext();
+
+    /// Moves to the match before the one the search stands on, towards the top, and from the first
+    /// to the last.
+    void searchPrevious();
+
     /// Scrolls back to the nearest mark above the top of what is shown. A mark is a line a shell
     /// said its prompt starts on (OSC 133 ; A).
     /// @return Whether the view moved; false when there is no mark above.
@@ -280,6 +308,10 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// differs from the last one given. The terminal is not resized: the host decides whether to
     /// call setPageSize(), and whether the child is told.
     void pageSizeRequested(QSize page);
+
+    /// searchState() may differ: the pattern changed, the search moved, or output added or removed
+    /// a match. Emitted on the GUI thread.
+    void searchChanged();
 
     /// The view moved, or -- once a display is attached -- a line left the top of the page:
     /// scrollOffset() or historyLineCount() may differ. Emitted on the GUI thread. A host draws its

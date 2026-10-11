@@ -350,6 +350,53 @@ TEST_CASE("embed: a host scrolls the view, and is told when it moved", "[contour
     CHECK(terminal.scrollOffset() == 0);
 }
 
+TEST_CASE("embed: a host searches, steps between the matches and ends the search", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 4 } };
+    // Three lines hold the word, one of them in capitals and one of them above the page.
+    terminal.feed("needle one\r\nhay\r\nhay\r\nNEEDLE two\r\nhay\r\nneedle three\r\nlast");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("last")); }));
+    CHECK(terminal.searchState().pattern.isEmpty());
+
+    QSignalSpy changed { &terminal, &Terminal::searchChanged };
+    terminal.setSearchPattern(QStringLiteral("needle"));
+    CHECK_FALSE(changed.isEmpty());
+    auto state = terminal.searchState();
+    CHECK(state.pattern == QStringLiteral("needle"));
+    CHECK(state.matches == 3);
+    CHECK_FALSE(state.capped);
+    // The nearest match above the cursor is the newest of the three.
+    CHECK(state.current == 3);
+
+    terminal.searchPrevious();
+    CHECK(terminal.searchState().current == 2);
+    terminal.searchPrevious();
+    CHECK(terminal.searchState().current == 1);
+    // The first match is the first line there is, so standing on it scrolled the view all the way.
+    CHECK(terminal.scrollOffset() == terminal.historyLineCount());
+    terminal.searchNext();
+    CHECK(terminal.searchState().current == 2);
+    // Stepping wraps: before the first is the last.
+    terminal.searchPrevious();
+    terminal.searchPrevious();
+    CHECK(terminal.searchState().current == 3);
+
+    // A capital in the pattern makes the case count.
+    terminal.setSearchPattern(QStringLiteral("NEEDLE"));
+    CHECK(terminal.searchState().matches == 1);
+
+    terminal.setSearchPattern(QStringLiteral("absent"));
+    state = terminal.searchState();
+    CHECK(state.matches == 0);
+    CHECK(state.current == 0);
+
+    terminal.setSearchPattern({});
+    CHECK(terminal.searchState().pattern.isEmpty());
+    // With nothing searched for there is nothing to step between.
+    terminal.searchNext();
+    CHECK(terminal.searchState().matches == 0);
+}
+
 TEST_CASE("embed: a host scrolls from mark to mark", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 20, 4 } };

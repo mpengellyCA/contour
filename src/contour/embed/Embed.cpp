@@ -335,6 +335,9 @@ struct Terminal::Impl
     std::unique_ptr<session::TerminalSession> session;
     /// The same session, for the terminal's thread: written once, before that thread starts.
     session::TerminalSession* running = nullptr;
+    /// Whether a search is under way. The session is told once when one starts, not per keystroke:
+    /// starting moves where the search counts from.
+    bool searching = false;
 };
 
 Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
@@ -388,6 +391,9 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
             &session::TerminalSession::historyLineCountChanged,
             this,
             &Terminal::scrollChanged);
+
+    connect(
+        _impl->session.get(), &session::TerminalSession::searchStateChanged, this, &Terminal::searchChanged);
 
     // A display starts the session when one is attached. A host may feed a terminal that has no
     // display yet, so it is started here; start() is a no-op the second time.
@@ -617,6 +623,48 @@ int Terminal::scrollOffset() const
 void Terminal::setScrollOffset(int lines)
 {
     _impl->session->setScrollOffset(std::clamp(lines, 0, historyLineCount()));
+}
+
+void Terminal::setSearchPattern(QString const& pattern)
+{
+    auto& session = *_impl->session;
+    if (pattern.isEmpty())
+    {
+        session.setSearchPattern({});
+        if (std::exchange(_impl->searching, false))
+            session.searchBarClosed();
+        return;
+    }
+    // The session counts matches only while it believes something shows the count.
+    if (!std::exchange(_impl->searching, true))
+        session.searchBarOpened();
+    session.setSearchPattern(pattern);
+}
+
+SearchState Terminal::searchState() const
+{
+    auto& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    auto const& pattern = terminal.search().pattern;
+    if (pattern.empty())
+        return {};
+    auto const tally = terminal.tallySearchMatches(terminal.normalModeCursorPosition());
+    return SearchState { .pattern = QString::fromStdU32String(pattern),
+                         .matches = static_cast<int>(tally.total),
+                         .current = static_cast<int>(tally.ordinal),
+                         .capped = tally.exactness == vtbackend::TallyExactness::Capped };
+}
+
+void Terminal::searchNext()
+{
+    if (_impl->searching)
+        _impl->session->searchNext();
+}
+
+void Terminal::searchPrevious()
+{
+    if (_impl->searching)
+        _impl->session->searchPrevious();
 }
 
 bool Terminal::scrollToPreviousMark()
