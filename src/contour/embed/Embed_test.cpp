@@ -742,6 +742,29 @@ TEST_CASE("embed: nothing is written beside a host's configuration file, and not
     CHECK_FALSE(session->app().speechSynthesizer().available());
 }
 
+TEST_CASE("embed: a terminal destroyed with the focus does not keep it", "[contour][embed]")
+{
+    auto first = std::make_unique<Terminal>(runtime(), QSize { 20, 2 });
+    Terminal const second { runtime(), QSize { 20, 2 } };
+    auto* const firstSession = dynamic_cast<contour::session::TerminalSession*>(first->session());
+    auto* const secondSession = dynamic_cast<contour::session::TerminalSession*>(second.session());
+    REQUIRE(firstSession != nullptr);
+    REQUIRE(secondSession != nullptr);
+    auto& manager = firstSession->app().sessionsManager();
+
+    // What a display does when it is given the keyboard.
+    manager.setFocusedSession(firstSession);
+    REQUIRE(manager.focusedSession() == firstSession);
+
+    // A host closes the terminal that has the focus. The next one to be focused is told so after
+    // the last one is told it lost it -- which must not be a session that no longer exists.
+    first.reset();
+    CHECK(manager.focusedSession() == nullptr);
+    manager.setFocusedSession(secondSession);
+    CHECK(manager.focusedSession() == secondSession);
+    manager.setFocusedSession(nullptr);
+}
+
 TEST_CASE("embed: a Runtime takes no signal of its host's and makes no crash directory", "[contour][embed]")
 {
     QTemporaryDir const state;

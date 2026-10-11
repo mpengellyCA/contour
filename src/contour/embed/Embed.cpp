@@ -403,6 +403,10 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
 
 Terminal::~Terminal()
 {
+    // The manager remembers which session has the focus, to tell it when it loses it. It forgets a
+    // session it made itself when that session closes; this one it did not make, so it is told here.
+    _impl->session->app().sessionsManager().clearFocusIfCurrent(_impl->session.get());
+
     _impl->session->terminate();
 
     // Destroyed here, by hand, rather than left to _impl's own destructor. The session's destructor

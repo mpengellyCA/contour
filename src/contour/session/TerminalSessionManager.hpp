@@ -406,6 +406,10 @@ class TerminalSessionManager: public QObject, public vtworkspace::ModelEvents
     /// @param session The session whose display just lost Qt focus.
     void clearFocusIfCurrent(TerminalSession* session);
 
+    /// The session that holds terminal focus.
+    /// @return The session, or nullptr when none does.
+    [[nodiscard]] TerminalSession* focusedSession() const noexcept { return _focusedSession; }
+
     /// The OS window that currently owns keyboard focus, as a model identity rather than a Qt pointer.
     /// VT focus only ever moves within this window, so a model event raised in a background window (a
     /// layout applying its tabs, a tab dropped in by a drag) cannot steal the focused terminal.
