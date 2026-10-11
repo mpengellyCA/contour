@@ -346,6 +346,67 @@ TEST_CASE("embed: a host scrolls from mark to mark", "[contour][embed]")
     CHECK(session->scrollOffset() == 0);
 }
 
+TEST_CASE("embed: a host sets the font size, and the page is still its own", "[contour][embed]")
+{
+    contour::test::FakeDisplaySurface surface;
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+
+    // With no display there is nothing to load the size into; it is kept for the one that comes.
+    terminal.setFontSize(15.0);
+    CHECK(terminal.fontSize() == 15.0);
+
+    surface.attachedSession = session;
+    session->attachDisplay(surface);
+    terminal.setFontSize(9.0);
+    REQUIRE_FALSE(surface.fontSizesRequested.empty());
+    CHECK(surface.fontSizesRequested.back().pt == 9.0);
+    CHECK(terminal.fontSize() == 9.0);
+
+    // A size the display could not load is not recorded as the size in force.
+    surface.fontSizeApplies = false;
+    terminal.setFontSize(400.0);
+    CHECK(terminal.fontSize() == 9.0);
+
+    CHECK(terminal.pageSize() == QSize { 80, 24 });
+}
+
+TEST_CASE("embed: a host chooses which of a profile's two palettes is drawn with", "[contour][embed]")
+{
+    QTemporaryDir const directory;
+    REQUIRE(directory.isValid());
+    Runtime host { RuntimeOptions { .configFile = writeConfig(directory,
+                                                              "default_profile: host\n"
+                                                              "color_schemes:\n"
+                                                              "    night:\n"
+                                                              "        default:\n"
+                                                              "            background: '#010203'\n"
+                                                              "            foreground: '#a0a1a2'\n"
+                                                              "    day:\n"
+                                                              "        default:\n"
+                                                              "            background: '#f0f1f2'\n"
+                                                              "            foreground: '#101112'\n"
+                                                              "profiles:\n"
+                                                              "    host:\n"
+                                                              "        colors:\n"
+                                                              "            dark: night\n"
+                                                              "            light: day\n"
+                                                              "input_mapping: []\n") } };
+    Terminal terminal { host, QSize { 20, 2 } };
+    terminal.feed("x");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("x")); }));
+    CHECK(terminal.cell(0, 0).background.rgb == qRgb(0x01, 0x02, 0x03));
+    CHECK(terminal.cell(0, 0).foreground.rgb == qRgb(0xa0, 0xa1, 0xa2));
+
+    terminal.setColorScheme(Qt::ColorScheme::Light);
+    CHECK(terminal.cell(0, 0).background.rgb == qRgb(0xf0, 0xf1, 0xf2));
+    CHECK(terminal.cell(0, 0).foreground.rgb == qRgb(0x10, 0x11, 0x12));
+
+    terminal.setColorScheme(Qt::ColorScheme::Dark);
+    CHECK(terminal.cell(0, 0).background.rgb == qRgb(0x01, 0x02, 0x03));
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };

@@ -483,6 +483,12 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     /// @return The authority.
     [[nodiscard]] PageSizeAuthority pageSizeAuthority() const noexcept { return _pageSizeAuthority; }
 
+    /// Sets this session's font size, now if a display is attached and when one is if not.
+    ///
+    /// A size the display could not load leaves the size as it was. GUI thread.
+    /// @param size The size wanted.
+    void setFontSize(text::FontSize size);
+
     /// Resizes the page on the host's say-so, whatever the display's pixels would fit.
     ///
     /// The one way a session under PageSizeAuthority::Host changes size. GUI thread.
@@ -1083,8 +1089,6 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     /// @param part Which part of the command block to copy.
     /// @return false when the scrollback holds no finished command (no OSC 133 shell integration).
     bool copyLastCommandBlock(vtbackend::CommandBlockPart part);
-
-    void setFontSize(text::FontSize size);
 
     /// Posts a refresh of the indicator status-line tab info (tab names) to the GUI thread.
     ///

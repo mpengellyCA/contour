@@ -348,6 +348,24 @@ void Terminal::setPageSize(QSize page)
         vtbackend::PageSize { vtbackend::LineCount(page.height()), vtbackend::ColumnCount(page.width()) });
 }
 
+double Terminal::fontSize() const
+{
+    return _impl->session->profile().fonts.value().size.pt;
+}
+
+void Terminal::setFontSize(double points)
+{
+    _impl->session->setFontSize(text::FontSize { points });
+}
+
+void Terminal::setColorScheme(Qt::ColorScheme scheme)
+{
+    _impl->session->updateColorPreference(scheme == Qt::ColorScheme::Light
+                                              ? vtbackend::ColorPreference::Light
+                                              : vtbackend::ColorPreference::Dark);
+    _impl->session->scheduleRedraw();
+}
+
 void Terminal::feed(QByteArrayView bytes)
 {
     _impl->pty->feed(std::string_view { bytes.data(), static_cast<std::size_t>(bytes.size()) });

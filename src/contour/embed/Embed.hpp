@@ -20,6 +20,7 @@
 #include <QtCore/QSize>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
+#include <QtCore/Qt>
 #include <QtGui/QRgb>
 #include <QtGui/QSurfaceFormat>
 
@@ -180,6 +181,21 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// background beside a page smaller than its pixels and the edge cutting off a larger one.
     /// @param page The page wanted: width is columns, height is lines.
     void setPageSize(QSize page);
+
+    /// The size text is drawn at, in points.
+    /// @return The size in force: the profile's until setFontSize() changes it.
+    [[nodiscard]] double fontSize() const;
+
+    /// Changes the size text is drawn at. The page is not resized: a display then fits a different
+    /// one, and says so through pageSizeRequested.
+    /// @param points The size wanted. One the display cannot load leaves the size as it was.
+    void setFontSize(double points);
+
+    /// Says which of a profile's two palettes to draw with, for a profile that names one for a dark
+    /// scheme and one for a light. A profile with one palette is unaffected.
+    /// @param scheme Qt::ColorScheme::Light for the light palette; anything else is the dark one,
+    ///               which is what a terminal starts with.
+    void setColorScheme(Qt::ColorScheme scheme);
 
     /// Gives the terminal bytes a child wrote. Callable from any thread.
     /// @param bytes The bytes, in order.
