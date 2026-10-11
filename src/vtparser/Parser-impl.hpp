@@ -701,6 +701,11 @@ void Parser<EventListener, TraceStateChanges>::printUtf8Byte(char ch)
 {
     auto const byte = static_cast<uint8_t>(ch);
 
+    // A pending character takes continuation bytes (10xxxxxx) and nothing else. Anything other
+    // ends it where it stands and is then read as itself.
+    if ((byte & 0xC0) != 0x80)
+        abandonUnfinishedCharacter();
+
     // An 8-bit C1 control (0x80..0x9F) that *begins* a character -- i.e. is not a UTF-8 continuation
     // byte in a multi-byte sequence -- is a control, not text. DEC terminals and esctest transmit
     // these as raw single bytes (Latin-1), which are not valid UTF-8, so they must be caught here
@@ -726,12 +731,30 @@ void Parser<EventListener, TraceStateChanges>::printUtf8Byte(char ch)
 }
 
 template <ParserEventsConcept EventListener, bool TraceStateChanges>
+void Parser<EventListener, TraceStateChanges>::abandonUnfinishedCharacter()
+{
+    if (_scanState.utf8.expectedLength == 0)
+        return;
+
+    auto constexpr ReplacementCharacter = char32_t { 0xFFFD };
+    _scanState.utf8 = {};
+    _eventListener.print(ReplacementCharacter);
+    _scanState.lastCodepointHint = ReplacementCharacter;
+}
+
+template <ParserEventsConcept EventListener, bool TraceStateChanges>
 void Parser<EventListener, TraceStateChanges>::handle(ActionClass actionClass,
                                                       Action action,
                                                       uint8_t codepoint)
 {
     (void) actionClass;
     auto const ch = static_cast<char>(codepoint);
+
+    // Only printing continues a character. Every other action means a control or a sequence arrived
+    // where a continuation byte was owed -- before it is acted on, so the replacement character
+    // lands ahead of whatever the control does.
+    if (action != Action::Print)
+        abandonUnfinishedCharacter();
 
     switch (action)
     {
