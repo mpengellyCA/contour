@@ -84,6 +84,14 @@ class ErrorLogCapture
     core::log::Sink& _previous;
 };
 
+/// How many key, character and mouse bindings the configuration @p session runs on carries.
+int inputMappingCount(contour::session::TerminalSession const& session)
+{
+    auto const& mappings = session.config().inputMappings.value();
+    return static_cast<int>(mappings.keyMappings.size() + mappings.charMappings.size()
+                            + mappings.mouseMappings.size());
+}
+
 /// Builds a Runtime of its own from @p configFile and reports what a terminal on it starts with.
 ///
 /// A host has one Runtime; these exist only long enough to be asked what they loaded.
@@ -94,7 +102,7 @@ Loaded loadedFrom(std::filesystem::path const& configFile)
     Terminal const terminal { host, QSize { 80, 24 } };
     auto const* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
     REQUIRE(session != nullptr);
-    return Loaded { .inputMappings = host.inputMappingCountForTesting(),
+    return Loaded { .inputMappings = inputMappingCount(*session),
                     .profile = session->profileName(),
                     .writeClipboard = session->profile().permissions.value().writeClipboard,
                     .reported = errors.text() };
@@ -511,8 +519,16 @@ TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]"
 
 TEST_CASE("embed: a hyperlink is offered, not opened", "[contour][embed]")
 {
+    // Through the launcher a session reaches for when a hyperlink is clicked, which is the one the
+    // Runtime put there.
+    Terminal const terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
     QSignalSpy offered { &runtime(), &Runtime::openUrlRequested };
-    CHECK(runtime().offerUrlForTesting(QUrl { QStringLiteral("https://example.org/") }));
+    CHECK(session->app()
+              .externalLauncher()
+              .openUrl(QUrl { QStringLiteral("https://example.org/") })
+              .has_value());
     REQUIRE(offered.size() == 1);
     CHECK(offered.first().first().toUrl() == QUrl { QStringLiteral("https://example.org/") });
 }
@@ -684,7 +700,10 @@ TEST_CASE("embed: a binding cannot reload or reset the configuration", "[contour
 
 TEST_CASE("embed: no default key binding survives", "[contour][embed]")
 {
-    CHECK(runtime().inputMappingCountForTesting() == 0);
+    Terminal const terminal { runtime(), QSize { 80, 24 } };
+    auto const* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    CHECK(inputMappingCount(*session) == 0);
 }
 
 TEST_CASE("embed: a host's configuration file that is missing is not created, and the built-in stands",

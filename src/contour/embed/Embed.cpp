@@ -273,7 +273,6 @@ struct Runtime::Impl
 {
     RuntimeOptions options; ///< What the runtime was built from.
     core::LiveEnvironment environment;
-    AnnouncingLauncher* launcher = nullptr; ///< Owned by the app; observed here for the test seam.
     std::unique_ptr<ContourGuiApp> app;
 };
 
@@ -283,7 +282,6 @@ Runtime::Runtime(RuntimeOptions options, QObject* parent):
     _impl->options = std::move(options);
 
     auto launcher = std::make_unique<AnnouncingLauncher>(*this);
-    _impl->launcher = launcher.get();
     // Stores that keep nothing and a synthesizer that cannot speak. Left to their defaults the
     // application writes layouts.yml and command-history.yml beside the configuration file and
     // opens the platform's speech service, none of which a host asked a terminal display to do.
@@ -329,18 +327,6 @@ Runtime::~Runtime() = default;
 QSurfaceFormat Runtime::surfaceFormat()
 {
     return display::createSurfaceFormat();
-}
-
-bool Runtime::offerUrlForTesting(QUrl const& url)
-{
-    return _impl->launcher->openUrl(url).has_value();
-}
-
-int Runtime::inputMappingCountForTesting() const
-{
-    auto const& mappings = _impl->app->config().inputMappings.value();
-    return static_cast<int>(mappings.keyMappings.size() + mappings.charMappings.size()
-                            + mappings.mouseMappings.size());
 }
 
 struct Terminal::Impl

@@ -82,15 +82,6 @@ class CONTOUR_EMBED_API Runtime final: public QObject
     /// @return The format.
     [[nodiscard]] static QSurfaceFormat surfaceFormat();
 
-    /// Test seam: asks the runtime to open @p url exactly as a clicked hyperlink would.
-    /// @param url The address.
-    /// @return Whether the request was accepted (it is then announced, never opened).
-    [[nodiscard]] bool offerUrlForTesting(QUrl const& url);
-
-    /// Test seam: how many key and mouse bindings the loaded configuration carries.
-    /// @return The count.
-    [[nodiscard]] int inputMappingCountForTesting() const;
-
   signals:
     /// A terminal asked for @p url to be opened. The library never opens it; the host decides.
     void openUrlRequested(QUrl const& url);
