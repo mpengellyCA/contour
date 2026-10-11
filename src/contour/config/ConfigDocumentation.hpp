@@ -1197,6 +1197,10 @@ constexpr StringLiteral ImagesConfig {
     "\n"
     "    {comment} Enable or disable Good Image Protocol (GIP) support (disabled by default).\n"
     "    good_image_protocol: {}\n"
+    "\n"
+    "    {comment} Whether an image an application sends is drawn at all. When false, sixel, ReGIS, "
+    "iTerm2, kitty and GIP images are read and discarded.\n"
+    "    display: {}\n"
 };
 
 constexpr StringLiteral ExperimentalFeaturesConfig {
@@ -1660,8 +1664,9 @@ constexpr StringLiteral LiveWeb { "option determines whether the instance should
 
 constexpr StringLiteral ImagesWeb {
     "section contains configuration options related to inline images. It includes options like "
-    "`sixel_scrolling`, `sixel_register_count`, and `good_image_protocol` to control various aspects of "
-    "image rendering. The maximum image size is derived from the screen size; `max_width` and "
+    "`sixel_scrolling`, `sixel_register_count`, `good_image_protocol` and `display` to control various "
+    "aspects of image rendering. With `display: false` no image is drawn. The maximum image size is derived "
+    "from the screen size; `max_width` and "
     "`max_height` are deprecated and ignored."
 };
 

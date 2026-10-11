@@ -484,6 +484,7 @@ vtbackend::Settings emulationSettings(Config const& config, TerminalProfile cons
     settings.frozenModes = profile.frozenModes.value();
     settings.maxImageRegisterCount = config.images.value().maxImageColorRegisters;
     settings.goodImageProtocol = config.images.value().goodImageProtocol;
+    settings.inlineImages = config.images.value().display;
     settings.primaryScreen.allowReflowOnResize = config.reflowOnResize.value();
     settings.graphemeClustering = config.graphemeClustering.value();
     settings.wordDelimiters = unicode::from_utf8(config.wordDelimiters.value());
@@ -2172,6 +2173,7 @@ void YAMLConfigReader::loadFromEntry(YAML::Node const& node, std::string const& 
                            deprecatedKey);
 
         loadFromEntry(child, "good_image_protocol", where.goodImageProtocol);
+        loadFromEntry(child, "display", where.display);
     }
 }
 

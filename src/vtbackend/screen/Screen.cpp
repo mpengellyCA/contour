@@ -2789,6 +2789,9 @@ void Screen::renderImage(shared_ptr<Image const> image,
                          bool updateCursor,
                          ImageLayer layer)
 {
+    if (!_terminal->settings().inlineImages)
+        return;
+
     // Floor both extents at the one point every image protocol funnels through, so that no caller can
     // express a size that cannot be walked. @see clampToPage, which explains how a wire-supplied
     // count becomes negative -- and which bounds the same values from ABOVE at each protocol's own

@@ -550,6 +550,7 @@ struct ImagesConfig
     bool sixelScrolling { true };
     int maxImageColorRegisters { 4096 };
     bool goodImageProtocol { false };
+    bool display { true };
 };
 
 struct HorizontalMarginTag
@@ -1923,7 +1924,7 @@ struct Writer
 
     [[nodiscard]] std::string format(std::string_view doc, ImagesConfig const& v)
     {
-        return format(doc, v.sixelScrolling, v.maxImageColorRegisters, v.goodImageProtocol);
+        return format(doc, v.sixelScrolling, v.maxImageColorRegisters, v.goodImageProtocol, v.display);
     }
 
     [[nodiscard]] std::string format(std::string_view doc, WindowMargins const& v)

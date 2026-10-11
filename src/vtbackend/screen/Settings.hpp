@@ -54,6 +54,11 @@ struct Settings
     unsigned maxImageRegisterCount = 256;
     bool goodImageProtocol = false;
 
+    /// Whether an image an application sends is put on the screen. Off, every image protocol is
+    /// still parsed to its end -- so what follows one is not mistaken for text -- and nothing is
+    /// drawn. @see Screen::renderImage, the one point they all funnel through.
+    bool inlineImages = true;
+
     /// Whether an application may read the clipboard via OSC 52 (`OSC 52 ; Pc ; ? ST`). Disabled by
     /// default: clipboard reading is a well-known exfiltration vector, so it is opt-in. Writing the
     /// clipboard via OSC 52 is unaffected by this. @see Terminal::requestClipboardRead.

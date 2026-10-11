@@ -457,6 +457,41 @@ TEST_CASE("embed: a child cannot resize the window, nor the page through it", "[
     CHECK(terminal.pageSize() == QSize { 80, 24 });
 }
 
+TEST_CASE("images.display: off, an image is read to its end and not drawn", "[contour][embed][images]")
+{
+    // A sixel of one red band, then a marker to wait on.
+    auto constexpr Sixel = "\033Pq#0;2;100;0;0#0~~~~~~~~~~~~-~~~~~~~~~~~~\033\\\r\nafter";
+    auto const firstCellHoldsAnImage = [&](QByteArrayView images) {
+        QTemporaryDir const directory;
+        REQUIRE(directory.isValid());
+        Runtime host { RuntimeOptions {
+            .configFile = writeConfig(directory,
+                                      QByteArray("default_profile: host\nprofiles:\n    host: {}\n") + images
+                                          + "input_mapping: []\n") } };
+        Terminal terminal { host, QSize { 20, 6 } };
+        auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+        REQUIRE(session != nullptr);
+        {
+            // No display is attached, so the terminal has not been told how large a cell is, and an
+            // image cannot be laid over cells of no size.
+            auto const lock = std::scoped_lock { session->terminal() };
+            session->terminal().setCellPixelSize(
+                vtbackend::ImageSize { vtbackend::Width(8), vtbackend::Height(16) });
+        }
+        terminal.feed(Sixel);
+        REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("after")); }));
+        auto const lock = std::scoped_lock { session->terminal() };
+        return session->terminal()
+                   .primaryScreen()
+                   .at(vtbackend::LineOffset(0), vtbackend::ColumnOffset(0))
+                   .imageFragment()
+               != nullptr;
+    };
+
+    CHECK(firstCellHoldsAnImage(""));
+    CHECK_FALSE(firstCellHoldsAnImage("images:\n    display: false\n"));
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };
