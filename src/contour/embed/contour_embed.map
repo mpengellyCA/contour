@@ -1,0 +1,23 @@
+# What libcontour_embed.so exports: the classes Embed.hpp declares, and nothing else.
+#
+# Hidden visibility on Embed.cpp is not enough. Contour itself is linked in as objects compiled
+# with default visibility, so without this every one of its symbols -- and those of the libraries
+# built with it -- left the library too, where a host's own copy of any of them could be bound to
+# Contour's, or Contour's to the host's.
+#
+# The vtables and type information are listed because a host's moc-generated code and any
+# dynamic_cast across the boundary need them.
+{
+    global:
+        extern "C++" {
+            contour::embed::*;
+            "vtable for contour::embed::Runtime";
+            "vtable for contour::embed::Terminal";
+            "typeinfo for contour::embed::Runtime";
+            "typeinfo for contour::embed::Terminal";
+            "typeinfo name for contour::embed::Runtime";
+            "typeinfo name for contour::embed::Terminal";
+        };
+    local:
+        *;
+};

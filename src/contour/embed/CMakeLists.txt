@@ -26,6 +26,25 @@ target_link_libraries(contour_embed
     PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick
     PRIVATE contour_core)
 
+# Only contour::embed leaves the library. The preset above hides what Embed.cpp defines and is not
+# exported; it does nothing for contour_core and everything under it, which are compiled with
+# default visibility for Contour's own executable and would all be exported from here. The version
+# script is the list, and check-exports.sh fails the build the moment the library disagrees with
+# it -- at link time, because the consumer of this library never runs its tests.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(contour_embed PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/contour_embed.map")
+    set_property(TARGET contour_embed APPEND PROPERTY
+        LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/contour_embed.map")
+    add_custom_command(TARGET contour_embed POST_BUILD
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/check-exports.sh"
+                $<TARGET_FILE:contour_embed> "${CMAKE_NM}"
+        VERBATIM)
+    add_test(NAME contour_embed_exports
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/check-exports.sh"
+                $<TARGET_FILE:contour_embed> "${CMAKE_NM}")
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
