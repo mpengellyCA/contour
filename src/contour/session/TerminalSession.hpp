@@ -101,6 +101,18 @@ enum class FoldingGate : uint8_t
     Always,         ///< The action runs regardless -- it can only ever REVEAL output.
 };
 
+/// Who decides how many lines and columns a session's page has.
+///
+/// A terminal window fits the page to the pixels it was given, which is what a terminal emulator is
+/// for. A session shown by an application that is not one may be a view of a terminal whose size is
+/// settled elsewhere -- shared with other viewers, or owned by a remote end -- and a page that
+/// followed each viewer's pixels would be a different page in every one of them.
+enum class PageSizeAuthority : uint8_t
+{
+    Display = 0, ///< The display fits the page to its pixels and resizes the terminal to match.
+    Host,        ///< Only TerminalSession::resizePage() resizes; the display reports what would fit.
+};
+
 /**
  * Manages a single terminal session (Client, Terminal, Display)
  *
@@ -454,6 +466,8 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
      * @param notifier how desktop notifications are raised. Null (the default) means the notifier
      *        this platform offers, per platform::makeDesktopNotifier(); a test passes a recording
      *        one to assert what OSC 99 asked for and to drive close/activation events back.
+     * @param pageSizeAuthority who resizes the page. Display (the default) is a terminal window: the
+     *        page follows the pixels. Host leaves the page to resizePage() alone.
      */
     TerminalSession(TerminalSessionManager* manager,
                     std::unique_ptr<vtpty::Pty> pty,
@@ -461,8 +475,26 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
                     std::string profileName = {},
                     std::optional<vtbackend::PageSize> initialPageSize = std::nullopt,
                     std::optional<vtpty::Process::ExecInfo> launchedCommand = std::nullopt,
-                    std::unique_ptr<platform::Notifier> notifier = nullptr);
+                    std::unique_ptr<platform::Notifier> notifier = nullptr,
+                    PageSizeAuthority pageSizeAuthority = PageSizeAuthority::Display);
     ~TerminalSession() override;
+
+    /// Who resizes this session's page; fixed at construction.
+    /// @return The authority.
+    [[nodiscard]] PageSizeAuthority pageSizeAuthority() const noexcept { return _pageSizeAuthority; }
+
+    /// Resizes the page on the host's say-so, whatever the display's pixels would fit.
+    ///
+    /// The one way a session under PageSizeAuthority::Host changes size. GUI thread.
+    /// @param totalPageSize The page wanted; clamped the way every resize is.
+    void resizePage(vtbackend::PageSize totalPageSize);
+
+    /// Publishes the page the display's pixels would fit, for a host that decides the size itself.
+    ///
+    /// Called by the resize path on every change of extent or cell size; announces only a page that
+    /// differs from the last one announced. GUI thread.
+    /// @param fit The page that would fit.
+    void announcePageFit(vtbackend::PageSize fit);
 
     int id() const noexcept { return _id; }
 
@@ -921,6 +953,9 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     void profileNameChanged(QString newValue);
     void lineCountChanged(int newValue);
     void columnsCountChanged(int newValue);
+    /// The display's pixels would now fit a page of @p columns by @p lines. Only emitted for a session
+    /// whose page size is its host's, which is the one that has to be told.
+    void pageFitChanged(int columns, int lines);
     void historyLineCountChanged(int newValue);
     void scrollOffsetChanged(int newValue);
     void titleChanged(QString const& value);
@@ -1193,6 +1228,9 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     /// back is still the point: that stack belongs to the parser thread.
     std::atomic<std::optional<input::MouseCursorShape>> _applicationPointerShape;
     bool _allowKeyMappings = true;
+    PageSizeAuthority _pageSizeAuthority;
+    /// The page last announced through pageFitChanged(), so an unchanged fit is not announced again.
+    std::optional<vtbackend::PageSize> _announcedPageFit;
     std::unique_ptr<platform::Audio> _audio;
     std::vector<int> _musicalNotesBuffer;
 

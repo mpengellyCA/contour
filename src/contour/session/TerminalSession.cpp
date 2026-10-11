@@ -228,7 +228,8 @@ TerminalSession::TerminalSession(TerminalSessionManager* manager,
                                  std::string profileName,
                                  std::optional<vtbackend::PageSize> initialPageSize,
                                  std::optional<vtpty::Process::ExecInfo> launchedCommand,
-                                 std::unique_ptr<platform::Notifier> notifier):
+                                 std::unique_ptr<platform::Notifier> notifier,
+                                 PageSizeAuthority pageSizeAuthority):
     _manager { manager },
     _id { createSessionId() },
     _startTime { steady_clock::now() },
@@ -249,6 +250,7 @@ TerminalSession::TerminalSession(TerminalSessionManager* manager,
                 std::move(pty),
                 config::sessionSettings(_config, _profile, _currentColorPreference, initialPageSize),
                 std::chrono::steady_clock::now() },
+    _pageSizeAuthority { pageSizeAuthority },
     _exitWatcherThread { std::make_unique<ExitWatcherThread>(*this) },
     // _config is declared before _desktopNotifier, so reading it here is well-defined. The delay is
     // fixed for the notifier's life: it decides how a backend that cannot observe a close behaves,
@@ -1408,6 +1410,42 @@ void TerminalSession::requestWindowResize(LineCount lines, ColumnCount columns)
         if (_display)
             _display->resizeWindow(lines, columns);
     });
+}
+
+void TerminalSession::resizePage(vtbackend::PageSize totalPageSize)
+{
+    auto const before = _terminal.totalPageSize();
+    auto const after = _terminal.clampedTotalPageSize(totalPageSize);
+    if (after == before)
+        return;
+
+    {
+        auto const l = scoped_lock { _terminal };
+        // With a display the child is told the pixels that page covers; without one the cell size
+        // the terminal already assumes stands, which is all there is to go on.
+        if (_display)
+            _terminal.resizeScreen(after, _display->reportedPixelSize(after));
+        else
+            _terminal.resizeScreenKeepingCellSize(after);
+        _terminal.clearSelection();
+    }
+
+    if (before.lines != after.lines)
+        emit lineCountChanged(after.lines.as<int>());
+    if (before.columns != after.columns)
+        emit columnsCountChanged(after.columns.as<int>());
+
+    // The renderer still holds the old page and its margins; the display's resize path republishes
+    // both, and under PageSizeAuthority::Host leaves the page just set alone.
+    resizeTerminalToDisplaySize();
+}
+
+void TerminalSession::announcePageFit(vtbackend::PageSize fit)
+{
+    if (_announcedPageFit == fit)
+        return;
+    _announcedPageFit = fit;
+    emit pageFitChanged(fit.columns.as<int>(), fit.lines.as<int>());
 }
 
 void TerminalSession::resizeTerminalToDisplaySize()

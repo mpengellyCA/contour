@@ -110,6 +110,25 @@ void applyResize(ImageSize newPixelSize, TerminalSession& session, vtrasterizer:
         [&](auto page) { return terminal.clampedTotalPageSize(page); },
         gutterWidthFor(session.config().folding.value(), cellSize));
 
+    if (session.pageSizeAuthority() == PageSizeAuthority::Host)
+    {
+        // The page is somebody else's to decide, so the pixels change and the page does not: the
+        // renderer is told where the page it already has sits in the new extent, and the host is told
+        // what would have fitted. A page smaller than the extent leaves background beside it; a larger
+        // one is cut off at the edge, exactly as a window below its minimum size is.
+        renderer.applyResize(newPixelSize,
+                             oldPageSize,
+                             geometry::fitPageToPixels(
+                                 newPixelSize,
+                                 cellSize,
+                                 marginsDevicePx,
+                                 [&](auto) { return oldPageSize; },
+                                 gutterWidthFor(session.config().folding.value(), cellSize))
+                                 .pageMargin);
+        session.announcePageFit(fit.pageSize);
+        return;
+    }
+
     renderer.applyResize(newPixelSize, fit.pageSize, fit.pageMargin);
 
     if (oldPageSize.lines != fit.pageSize.lines)

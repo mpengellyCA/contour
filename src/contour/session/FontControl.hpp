@@ -58,6 +58,10 @@ class TerminalSession;
 }
 
 /// Refits the grid to @p newPixelSize and resizes the child PTY accordingly.
+///
+/// A session whose page size is its host's (@see PageSizeAuthority) is not resized: the renderer is
+/// given the new extent around the page the terminal already has, and the page that would have fitted
+/// is announced through TerminalSession::announcePageFit().
 void applyResize(vtbackend::ImageSize newPixelSize,
                  TerminalSession& session,
                  vtrasterizer::Renderer& renderer);

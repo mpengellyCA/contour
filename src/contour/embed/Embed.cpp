@@ -280,7 +280,7 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
     });
     _impl->pty = pty.get();
 
-    // Both sinks run on the terminal's own threads; the signals are the host's, on the GUI thread.
+    // The sink runs on the terminal's own thread; the signal is the host's, on the GUI thread.
     _impl->pty->setWriteSink([this](std::string_view bytes) {
         QMetaObject::invokeMethod(
             this,
@@ -288,12 +288,6 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
                 emit input(copy);
             },
             Qt::QueuedConnection);
-    });
-    _impl->pty->setResizeSink([this](vtpty::PageSize requested, std::optional<vtpty::ImageSize>) {
-        auto const asked =
-            QSize { static_cast<int>(unbox(requested.columns)), static_cast<int>(unbox(requested.lines)) };
-        QMetaObject::invokeMethod(
-            this, [this, asked] { emit pageSizeRequested(asked); }, Qt::QueuedConnection);
     });
 
     auto& app = *runtime._impl->app;
@@ -306,7 +300,16 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
                                                                 std::string {},
                                                                 pageSize,
                                                                 std::nullopt,
-                                                                std::make_unique<platform::NullNotifier>());
+                                                                std::make_unique<platform::NullNotifier>(),
+                                                                session::PageSizeAuthority::Host);
+
+    // What the device is told about its size is not a request: it is the terminal reporting a resize
+    // that has already happened, and it also fires when a display merely attaches. The request is
+    // the display's fit, which resizes nothing.
+    connect(_impl->session.get(),
+            &session::TerminalSession::pageFitChanged,
+            this,
+            [this](int columns, int lines) { emit pageSizeRequested(QSize { columns, lines }); });
 
     // A display starts the session when one is attached. A host may feed a terminal that has no
     // display yet, so it is started here; start() is a no-op the second time.
@@ -329,6 +332,18 @@ Terminal::~Terminal()
 QObject* Terminal::session() const noexcept
 {
     return _impl->session.get();
+}
+
+QSize Terminal::pageSize() const
+{
+    auto const page = _impl->session->terminal().totalPageSize();
+    return QSize { page.columns.as<int>(), page.lines.as<int>() };
+}
+
+void Terminal::setPageSize(QSize page)
+{
+    _impl->session->resizePage(
+        vtbackend::PageSize { vtbackend::LineCount(page.height()), vtbackend::ColumnCount(page.width()) });
 }
 
 void Terminal::feed(QByteArrayView bytes)

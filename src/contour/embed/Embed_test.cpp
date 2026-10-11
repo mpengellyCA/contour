@@ -159,6 +159,54 @@ TEST_CASE("embed: a terminal fed from another thread shows it, and answers on th
     CHECK(elsewhere.load() == 0);
 }
 
+TEST_CASE("embed: the page is the host's, and a display attaching does not resize it", "[contour][embed]")
+{
+    // A surface whose pixels would fit a different page. Attaching it reports the terminal's pixel
+    // size to the device, which used to reach the host as a request for the page it already had.
+    contour::test::FakeDisplaySurface surface;
+    surface.pixelSizeValue = { vtbackend::Width(400), vtbackend::Height(160) };
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    QSignalSpy const requested { &terminal, &Terminal::pageSizeRequested };
+
+    surface.attachedSession = session;
+    session->attachDisplay(surface);
+    QCoreApplication::processEvents();
+    CHECK(terminal.pageSize() == QSize { 80, 24 });
+    CHECK(requested.isEmpty());
+
+    // What the resize path says would fit is a request, and resizes nothing.
+    session->announcePageFit({ vtbackend::LineCount(10), vtbackend::ColumnCount(50) });
+    REQUIRE(requested.size() == 1);
+    CHECK(requested.front().front().toSize() == QSize { 50, 10 });
+    CHECK(terminal.pageSize() == QSize { 80, 24 });
+
+    // The same fit again is not a second request.
+    session->announcePageFit({ vtbackend::LineCount(10), vtbackend::ColumnCount(50) });
+    CHECK(requested.size() == 1);
+}
+
+TEST_CASE("embed: setPageSize resizes the page and refits the display", "[contour][embed]")
+{
+    contour::test::FakeDisplaySurface surface;
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    surface.attachedSession = session;
+    session->attachDisplay(surface);
+    auto const refitsBefore = surface.terminalResizeRequests;
+
+    terminal.setPageSize(QSize { 100, 30 });
+    CHECK(terminal.pageSize() == QSize { 100, 30 });
+    // The renderer holds the old page until the display's resize path runs again.
+    REQUIRE(eventually([&] { return surface.terminalResizeRequests > refitsBefore; }));
+
+    // A page of the new width holds a line the old one would have wrapped.
+    terminal.feed(QByteArray(100, 'w'));
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QString(100, QLatin1Char('w'))); }));
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };

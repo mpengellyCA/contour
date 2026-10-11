@@ -6,8 +6,9 @@
 ///
 /// A host constructs one Runtime after its Qt application, then one Terminal per terminal it shows.
 /// A Terminal has no child process: the host feed()s it the bytes a child wrote and receives, as
-/// signals, the bytes the terminal would have written back and the page size it would like. In QML
-/// the host imports `Contour.Terminal` and gives a `ContourTerminal` item the Terminal's `session`.
+/// signals, the bytes the terminal would have written back and the page size its display would fit.
+/// The page is the host's: nothing but setPageSize() changes it. In QML the host imports
+/// `Contour.Terminal` and gives a `ContourTerminal` item the Terminal's `session`.
 ///
 /// Nothing in this header names a Contour type, so a host compiles against Qt alone.
 
@@ -109,6 +110,15 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// @return The session object; owned by this Terminal.
     [[nodiscard]] QObject* session() const noexcept;
 
+    /// The page: width is columns, height is lines.
+    /// @return The size the terminal has now.
+    [[nodiscard]] QSize pageSize() const;
+
+    /// Resizes the page. The only thing that does: a display shows the page it is given, with
+    /// background beside a page smaller than its pixels and the edge cutting off a larger one.
+    /// @param page The page wanted: width is columns, height is lines.
+    void setPageSize(QSize page);
+
     /// Gives the terminal bytes a child wrote. Callable from any thread.
     /// @param bytes The bytes, in order.
     void feed(QByteArrayView bytes);
@@ -121,8 +131,10 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// Bytes for the child: keys, pastes, mouse reports and replies. Emitted on the GUI thread.
     void input(QByteArray const& bytes);
 
-    /// The display would like the page to be @p page (width columns, height lines). Emitted on the
-    /// GUI thread. The host decides whether the child is told.
+    /// The display's pixels would fit a page of @p page (width columns, height lines). Emitted on the
+    /// GUI thread when a display is attached, resized or changes its font, and only when the answer
+    /// differs from the last one given. The terminal is not resized: the host decides whether to
+    /// call setPageSize(), and whether the child is told.
     void pageSizeRequested(QSize page);
 
   private:
