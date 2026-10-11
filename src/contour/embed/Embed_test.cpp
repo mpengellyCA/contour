@@ -589,6 +589,17 @@ TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]"
     CHECK(session->terminal().statusDisplayType() == vtbackend::StatusDisplayType::None);
 }
 
+TEST_CASE("embed: the built-in profile reserves no fold gutter", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    // The gutter is a column of the item left of the grid that answers a click by folding output.
+    // A host that lays its own chrome around the item has a page of exactly the columns it asked
+    // for, and a pointer over the first of them is over the first cell.
+    CHECK_FALSE(session->terminal().settings().foldMarkers);
+}
+
 TEST_CASE("embed: a hyperlink is offered, not opened", "[contour][embed]")
 {
     // Through the launcher a session reaches for when a hyperlink is clicked, which is the one the
