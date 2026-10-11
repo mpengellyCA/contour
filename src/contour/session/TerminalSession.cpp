@@ -343,6 +343,16 @@ input::KeyboardLayout const& TerminalSession::keyboardLayout() const noexcept
     return _app.keyboardLayout();
 }
 
+QString TerminalSession::accessibleName() const
+{
+    return _accessibleName.isEmpty() ? title() : _accessibleName;
+}
+
+void TerminalSession::setAccessibleName(QString name)
+{
+    _accessibleName = std::move(name);
+}
+
 void TerminalSession::attachDisplay(DisplaySurface& newDisplay)
 {
     sessionLog()("Attaching session to display of {} device pixels.", newDisplay.pixelSize());

@@ -407,6 +407,27 @@ TEST_CASE("embed: a host chooses which of a profile's two palettes is drawn with
     CHECK(terminal.cell(0, 0).background.rgb == qRgb(0x01, 0x02, 0x03));
 }
 
+TEST_CASE("embed: a host's name for the terminal is not the child's to change", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 2 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+
+    // Unnamed, a display is called what the window is, and the child decides that.
+    terminal.feed("\033]2;from the child\033\\one");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("one")); }));
+    CHECK(session->accessibleName().contains(QStringLiteral("from the child")));
+
+    terminal.setAccessibleName(QStringLiteral("Console for build"));
+    CHECK(session->accessibleName() == QStringLiteral("Console for build"));
+    terminal.feed("\033]2;renamed by the child\033\\two");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("two")); }));
+    CHECK(session->accessibleName() == QStringLiteral("Console for build"));
+
+    terminal.setAccessibleName(QString {});
+    CHECK(session->accessibleName().contains(QStringLiteral("renamed by the child")));
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };

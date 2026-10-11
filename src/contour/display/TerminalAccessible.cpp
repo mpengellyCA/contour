@@ -188,7 +188,7 @@ QString TerminalAccessible::text(QAccessible::Text which) const
 
     switch (which)
     {
-        case QAccessible::Name: return item->session().title();
+        case QAccessible::Name: return item->session().accessibleName();
         case QAccessible::Value: {
             auto const lock = std::lock_guard { item->terminal() };
             auto const& screen = item->terminal().currentScreen();

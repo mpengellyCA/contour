@@ -197,6 +197,12 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     ///               which is what a terminal starts with.
     void setColorScheme(Qt::ColorScheme scheme);
 
+    /// Names the terminal for assistive technology. Without one a display is named by the window
+    /// title, which the child sets; a host that shows the terminal inside its own interface names
+    /// it itself. The name is read when it is asked for and never announced.
+    /// @param name The name; an empty one returns to the title.
+    void setAccessibleName(QString const& name);
+
     /// Gives the terminal bytes a child wrote. Callable from any thread.
     /// @param bytes The bytes, in order.
     void feed(QByteArrayView bytes);

@@ -366,6 +366,11 @@ void Terminal::setColorScheme(Qt::ColorScheme scheme)
     _impl->session->scheduleRedraw();
 }
 
+void Terminal::setAccessibleName(QString const& name)
+{
+    _impl->session->setAccessibleName(name);
+}
+
 void Terminal::feed(QByteArrayView bytes)
 {
     _impl->pty->feed(std::string_view { bytes.data(), static_cast<std::size_t>(bytes.size()) });

@@ -404,6 +404,19 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     std::tuple<vtbackend::LineOffset, vtbackend::ColumnOffset> consumeScroll() noexcept;
 
     QString title() const;
+
+    /// The name assistive technology is given for this session's display.
+    ///
+    /// The window title unless a host has given one: a title is whatever the child last set with
+    /// OSC 0 or OSC 2, which is the right name for a terminal window and the wrong one for a
+    /// terminal shown inside another application, where it would let the child say what the host's
+    /// own control is called.
+    /// @return The host's name if it gave one, else title().
+    [[nodiscard]] QString accessibleName() const;
+
+    /// Names this session's display for assistive technology, in place of the window title.
+    /// @param name The name; an empty one returns to the window title. GUI thread.
+    void setAccessibleName(QString name);
     void setTitle(QString const& value) { terminal().setWindowTitle(value.toStdString()); }
 
     int pageLineCount() const noexcept { return unbox(_terminal.pageSize().lines); }
@@ -1233,6 +1246,7 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     std::atomic<std::optional<input::MouseCursorShape>> _applicationPointerShape;
     bool _allowKeyMappings = true;
     PageSizeAuthority _pageSizeAuthority;
+    QString _accessibleName; ///< A host's name for the display; empty means the window title.
     /// The page last announced through pageFitChanged(), so an unchanged fit is not announced again.
     std::optional<vtbackend::PageSize> _announcedPageFit;
     std::unique_ptr<platform::Audio> _audio;
