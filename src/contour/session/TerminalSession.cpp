@@ -1411,7 +1411,9 @@ void TerminalSession::onSelectionCompleted()
 
 void TerminalSession::requestWindowResize(LineCount lines, ColumnCount columns)
 {
-    if (!_display)
+    // A window resize is a page resize by another route, and this page is not the child's to ask
+    // for: its host decides it. @see PageSizeAuthority.
+    if (!_display || _pageSizeAuthority == PageSizeAuthority::Host)
         return;
 
     sessionLog()("Application request to resize window: {}x{} cells", columns, lines);
@@ -1470,7 +1472,7 @@ void TerminalSession::resizeTerminalToDisplaySize()
 
 void TerminalSession::requestWindowResize(Width width, Height height)
 {
-    if (!_display)
+    if (!_display || _pageSizeAuthority == PageSizeAuthority::Host)
         return;
 
     sessionLog()("Application request to resize window: {}x{} pixels", width, height);

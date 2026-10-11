@@ -439,6 +439,24 @@ TEST_CASE("embed: a child cannot play a sound", "[contour][embed]")
     CHECK_FALSE(session->hasAudioOutput());
 }
 
+TEST_CASE("embed: a child cannot resize the window, nor the page through it", "[contour][embed]")
+{
+    contour::test::FakeDisplaySurface surface;
+    Terminal terminal { runtime(), QSize { 80, 24 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    surface.attachedSession = session;
+    session->attachDisplay(surface);
+
+    // CSI 8 ; lines ; columns t asks for a page, CSI 4 ; height ; width t for pixels.
+    terminal.feed("\033[8;10;40t\033[4;300;400tasked");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("asked")); }));
+    QCoreApplication::processEvents();
+    CHECK(surface.pageResizeRequests.empty());
+    CHECK(surface.pixelResizeRequests.empty());
+    CHECK(terminal.pageSize() == QSize { 80, 24 });
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };
