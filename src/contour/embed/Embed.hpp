@@ -16,6 +16,7 @@
 #include <QtCore/QByteArrayView>
 #include <QtCore/QFlags>
 #include <QtCore/QObject>
+#include <QtCore/QPoint>
 #include <QtCore/QSize>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
@@ -206,6 +207,28 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// How many lines have left the top of the screen that is up and are kept.
     /// @return The count; 0 on the alternate screen, which keeps none.
     [[nodiscard]] int historyLineCount() const;
+
+    /// Selects the text between two cells, in reading order, replacing any selection.
+    ///
+    /// A point's x is a column and its y a line, as cell() counts them, so a negative line reaches
+    /// into the scrollback. Either end may come first.
+    /// @param from One end.
+    /// @param to   The other end; selected too.
+    void select(QPoint from, QPoint to);
+
+    /// Selects everything the terminal holds: the scrollback and the page.
+    void selectAll();
+
+    /// Drops the selection, if there is one.
+    void clearSelection();
+
+    /// Whether anything is selected, by the host or by the pointer.
+    /// @return True when there is a selection.
+    [[nodiscard]] bool hasSelection() const;
+
+    /// The selected text. The library puts it nowhere: what is copied, and to where, is the host's.
+    /// @return The text, lines separated by a line feed; empty when nothing is selected.
+    [[nodiscard]] QString selectionText() const;
 
   signals:
     /// Bytes for the child: keys, pastes, mouse reports and replies. Emitted on the GUI thread.

@@ -286,6 +286,35 @@ TEST_CASE("embed: the cursor, the screen that is up and the scrollback can be as
     CHECK(terminal.cell(-1, 0).text.isEmpty());
 }
 
+TEST_CASE("embed: a host selects, reads what it selected, and nothing is copied for it", "[contour][embed]")
+{
+    QGuiApplication::clipboard()->setText(QStringLiteral("the host's"));
+    Terminal terminal { runtime(), QSize { 10, 3 } };
+    terminal.feed("zero\r\nalpha beta\r\ngamma\r\ndone");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("done")); }));
+    CHECK_FALSE(terminal.hasSelection());
+    CHECK(terminal.selectionText().isEmpty());
+
+    // Across a line end, and given backwards: the text between is what was crossed.
+    terminal.select(QPoint { 2, 1 }, QPoint { 6, 0 });
+    CHECK(terminal.hasSelection());
+    CHECK(terminal.selectionText() == QStringLiteral("beta\ngam"));
+
+    // Into the scrollback, which a negative line names.
+    terminal.select(QPoint { 0, -1 }, QPoint { 4, 0 });
+    CHECK(terminal.selectionText() == QStringLiteral("zero\nalpha"));
+
+    terminal.selectAll();
+    CHECK(terminal.selectionText().startsWith(QStringLiteral("zero\nalpha beta\ngamma\ndone")));
+
+    terminal.clearSelection();
+    CHECK_FALSE(terminal.hasSelection());
+    CHECK(terminal.selectionText().isEmpty());
+
+    QCoreApplication::processEvents();
+    CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("the host's"));
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };

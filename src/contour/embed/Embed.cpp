@@ -11,6 +11,8 @@
 #include <contour/session/TerminalSession.hpp>
 #include <contour/session/TerminalSessionManager.hpp>
 
+#include <vtbackend/input/vi/Selector.hpp>
+
 #include <vtpty/ChannelPty.hpp>
 
 #include <core/Assert.hpp>
@@ -448,6 +450,64 @@ int Terminal::historyLineCount() const
     auto const& terminal = _impl->session->terminal();
     auto const lock = std::scoped_lock { terminal };
     return terminal.currentScreen().historyLineCount().as<int>();
+}
+
+void Terminal::select(QPoint from, QPoint to)
+{
+    auto& terminal = _impl->session->terminal();
+    {
+        auto const lock = std::scoped_lock { terminal };
+        auto const place = [&](QPoint point) {
+            auto const page = terminal.pageSize();
+            auto const top = -terminal.currentScreen().historyLineCount().as<int>();
+            return vtbackend::CellLocation {
+                .line = vtbackend::LineOffset(std::clamp(point.y(), top, page.lines.as<int>() - 1)),
+                .column = vtbackend::ColumnOffset(std::clamp(point.x(), 0, page.columns.as<int>() - 1)),
+            };
+        };
+        terminal.setSelector(std::make_unique<vtbackend::LinearSelection>(
+            terminal.selectionHelper(), place(from), terminal.selectionUpdatedHelper()));
+        (void) terminal.selector()->extend(place(to));
+        terminal.selector()->complete();
+        terminal.onSelectionUpdated();
+    }
+    _impl->session->scheduleRedraw();
+}
+
+void Terminal::selectAll()
+{
+    auto& terminal = _impl->session->terminal();
+    {
+        auto const lock = std::scoped_lock { terminal };
+        terminal.selectAll();
+    }
+    _impl->session->scheduleRedraw();
+}
+
+void Terminal::clearSelection()
+{
+    auto& terminal = _impl->session->terminal();
+    {
+        auto const lock = std::scoped_lock { terminal };
+        terminal.clearSelection();
+    }
+    _impl->session->scheduleRedraw();
+}
+
+bool Terminal::hasSelection() const
+{
+    auto const& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    return terminal.selectionAvailable();
+}
+
+QString Terminal::selectionText() const
+{
+    auto const& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    if (!terminal.selectionAvailable())
+        return {};
+    return QString::fromStdString(terminal.extractSelectionText());
 }
 
 QString Terminal::mainPageText() const
