@@ -240,6 +240,22 @@ namespace
 } // namespace
 // }}}
 
+void ContourApp::installCrashHandler()
+{
+#ifdef __linux__
+    auto crashLogDirPath = localStateDir() / "crash";
+    crashLogDir = crashLogDirPath.string();
+    auto errorCode = std::error_code {};
+    std::filesystem::create_directories(crashLogDirPath, errorCode);
+    if (errorCode)
+        std::cerr << std::format("Warning: Failed to create crash log directory: {} ({})\n",
+                                 errorCode.message(),
+                                 errorCode.category().name());
+    // signal(SIGSEGV, segvHandler);
+    signal(SIGABRT, segvHandler);
+#endif
+}
+
 ContourApp::ContourApp(core::Environment const& env):
     App(env, "contour", "Contour Terminal Emulator", CONTOUR_VERSION_STRING, "Apache-2.0")
 {
@@ -255,19 +271,6 @@ ContourApp::ContourApp(core::Environment const& env):
         Project { "libunicode", "Apache-2.0", "https://github.com/contour-terminal/libunicode" },
         Project { "yaml-cpp", "MIT", "https://github.com/jbeder/yaml-cpp" },
         Project { "termbench-pro", "Apache-2.0", "https://github.com/contour-terminal/termbench-pro" });
-
-#ifdef __linux__
-    auto crashLogDirPath = core::cli::App::instance()->localStateDir() / "crash";
-    crashLogDir = crashLogDirPath.string();
-    auto errorCode = std::error_code {};
-    std::filesystem::create_directories(crashLogDirPath, errorCode);
-    if (errorCode)
-        std::cerr << std::format("Warning: Failed to create crash log directory: {} ({})\n",
-                                 errorCode.message(),
-                                 errorCode.category().name());
-    // signal(SIGSEGV, segvHandler);
-    signal(SIGABRT, segvHandler);
-#endif
 
 #ifdef _WIN32
     // Enable VT output processing on Conhost.

@@ -175,5 +175,6 @@ int main(int argc, char const* argv[])
     contour::cli::ContourApp app { environment };
 #endif
 
+    app.installCrashHandler();
     return app.run(argc, argv);
 }

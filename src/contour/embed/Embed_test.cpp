@@ -20,6 +20,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <csignal>
 #include <filesystem>
 #include <ranges>
 #include <sstream>
@@ -739,6 +740,38 @@ TEST_CASE("embed: nothing is written beside a host's configuration file, and not
     CHECK(entries == 1); // contour.yml, as written above
 
     CHECK_FALSE(session->app().speechSynthesizer().available());
+}
+
+TEST_CASE("embed: a Runtime takes no signal of its host's and makes no crash directory", "[contour][embed]")
+{
+    QTemporaryDir const state;
+    REQUIRE(state.isValid());
+    auto const stateBefore = qgetenv("XDG_STATE_HOME");
+    auto const stateWasSet = qEnvironmentVariableIsSet("XDG_STATE_HOME");
+    qputenv("XDG_STATE_HOME", state.path().toUtf8());
+
+    // The host's own handler, whatever it does with an abort: a crash reporter, a test framework's.
+    auto const hosts = +[](int) {
+    };
+    auto const before = std::signal(SIGABRT, hosts);
+    {
+        Runtime host { RuntimeOptions {} };
+        Terminal const terminal { host, QSize { 20, 2 } };
+        QCoreApplication::processEvents();
+    }
+    auto const after = std::signal(SIGABRT, before);
+
+    if (stateWasSet)
+        qputenv("XDG_STATE_HOME", stateBefore);
+    else
+        qunsetenv("XDG_STATE_HOME");
+
+    CHECK(after == hosts);
+    auto entries = 0;
+    for ([[maybe_unused]] auto const& entry:
+         std::filesystem::directory_iterator { std::filesystem::path { state.path().toStdString() } })
+        ++entries;
+    CHECK(entries == 0);
 }
 
 TEST_CASE("embed: a binding cannot reload or reset the configuration", "[contour][embed]")

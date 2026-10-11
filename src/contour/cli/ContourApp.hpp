@@ -32,6 +32,13 @@ class ContourApp: public core::cli::App
     /// @param env The process environment every part of the application reads through.
     explicit ContourApp(core::Environment const& env);
 
+    /// Makes the directory crash logs go to and takes SIGABRT for the handler that writes them.
+    ///
+    /// What a terminal application does for itself, once, before it runs. Not done by the
+    /// constructor: a host that embeds the terminal constructs this too, and its signal handlers
+    /// and its state directory are its own.
+    void installCrashHandler();
+
     [[nodiscard]] core::cli::Command parameterDefinition() const override;
 
   private:
