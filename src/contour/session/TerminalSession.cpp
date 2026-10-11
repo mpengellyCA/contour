@@ -2398,6 +2398,12 @@ void TerminalSession::onHighlightUpdate()
 
 void TerminalSession::playSound(vtbackend::Sequence::Parameters const& params)
 {
+    // DECPS is the same speaker the bell rings, driven by the child instead of by BEL. A profile
+    // that has the bell off has asked for a silent terminal, and until now got one only until the
+    // child played a tune: this opened an audio output regardless.
+    if (_profile.bell.value().sound == "off")
+        return;
+
     if (!_audio)
         _audio = std::make_unique<platform::Audio>();
 

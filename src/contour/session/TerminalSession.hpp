@@ -502,6 +502,11 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
     /// @param size The size wanted.
     void setFontSize(text::FontSize size);
 
+    /// Whether this session has opened an audio output, which it does the first time it plays a
+    /// DECPS sound and not before.
+    /// @return True once one exists.
+    [[nodiscard]] bool hasAudioOutput() const noexcept { return _audio != nullptr; }
+
     /// Resizes the page on the host's say-so, whatever the display's pixels would fit.
     ///
     /// The one way a session under PageSizeAuthority::Host changes size. GUI thread.

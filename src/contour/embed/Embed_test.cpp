@@ -428,6 +428,17 @@ TEST_CASE("embed: a host's name for the terminal is not the child's to change", 
     CHECK(session->accessibleName().contains(QStringLiteral("renamed by the child")));
 }
 
+TEST_CASE("embed: a child cannot play a sound", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 2 } };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    // DECPS: volume 7, an eighth of a second, one note. Then a marker to wait on.
+    terminal.feed("\033[7;4;10,~played");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("played")); }));
+    CHECK_FALSE(session->hasAudioOutput());
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };
