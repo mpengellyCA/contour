@@ -665,6 +665,9 @@ if(CONTOUR_FRONTEND_GUI)
             Catch2::Catch2
         )
         target_include_directories(contour_gui_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+        # embed/Embed.cpp is compiled into this executable rather than linked from the shared
+        # library, so its classes are neither exported nor imported here. @see embed/Embed.hpp.
+        target_compile_definitions(contour_gui_test PRIVATE CONTOUR_EMBED_STATIC)
         if(NOT WIN32)
             target_compile_options(contour_gui_test PRIVATE -Wno-c2y-extensions)
         endif()

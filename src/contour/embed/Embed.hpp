@@ -27,7 +27,12 @@
 #include <filesystem>
 #include <memory>
 
-#ifdef CONTOUR_EMBED_BUILD
+// CONTOUR_EMBED_STATIC is for a binary that compiles Embed.cpp into itself, as this library's own
+// tests do: nothing crosses a library boundary there, and declaring the classes imported makes MSVC
+// look for them in a DLL that does not exist.
+#if defined(CONTOUR_EMBED_STATIC)
+    #define CONTOUR_EMBED_API
+#elif defined(CONTOUR_EMBED_BUILD)
     #define CONTOUR_EMBED_API Q_DECL_EXPORT
 #else
     #define CONTOUR_EMBED_API Q_DECL_IMPORT
