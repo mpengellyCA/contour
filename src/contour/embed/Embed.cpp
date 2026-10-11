@@ -7,8 +7,8 @@
 #include <contour/display/ShaderConfig.hpp>
 #include <contour/display/TerminalAccessible.hpp>
 #include <contour/display/TerminalDisplay.hpp>
+#include <contour/embed/BuiltinConfig.hpp>
 #include <contour/embed/Embed.hpp>
-#include <contour/embed/EmbedConfig.yml.in.hpp>
 #include <contour/platform/ExternalLauncher.hpp>
 #include <contour/platform/Notifier.hpp>
 #include <contour/platform/SpeechSynthesizer.hpp>

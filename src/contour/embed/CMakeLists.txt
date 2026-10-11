@@ -11,7 +11,7 @@ if(NOT CMAKE_POSITION_INDEPENDENT_CODE)
     message(FATAL_ERROR "CONTOUR_EMBED_LIBRARY needs -DCMAKE_POSITION_INDEPENDENT_CODE=ON")
 endif()
 
-add_library(contour_embed SHARED Embed.cpp Embed.hpp EmbedConfig.yml.in.hpp)
+add_library(contour_embed SHARED Embed.cpp Embed.hpp BuiltinConfig.hpp)
 set_target_properties(contour_embed PROPERTIES
     AUTOMOC ON
     CXX_VISIBILITY_PRESET hidden
