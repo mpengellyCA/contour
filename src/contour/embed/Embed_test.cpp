@@ -207,6 +207,85 @@ TEST_CASE("embed: setPageSize resizes the page and refits the display", "[contou
     REQUIRE(eventually([&] { return terminal.mainPageText().contains(QString(100, QLatin1Char('w'))); }));
 }
 
+TEST_CASE("embed: a cell says what it holds and how it is drawn", "[contour][embed]")
+{
+    using contour::embed::CellAttribute;
+    using contour::embed::ColorKind;
+    Terminal terminal { runtime(), QSize { 20, 4 } };
+    // Bold red on indexed 20, a direct colour with a curly underline, a combining mark, a wide
+    // character, and a hidden cell; then a marker to wait on.
+    terminal.feed("\033[1;31;48;5;20mA\033[0m"
+                  "\033[38;2;1;2;3;4:3mB\033[0m"
+                  "e\xCC\x81"
+                  "\xE4\xB8\x96"
+                  "\033[8;7mH\033[0m"
+                  "\r\ndone");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("done")); }));
+
+    auto const a = terminal.cell(0, 0);
+    CHECK(a.text == QStringLiteral("A"));
+    CHECK(a.width == 1);
+    CHECK(a.attributes == contour::embed::CellAttributes { CellAttribute::Bold });
+    CHECK(a.foreground.kind == ColorKind::Indexed);
+    CHECK(a.foreground.index == 1);
+    CHECK(a.background.kind == ColorKind::Indexed);
+    CHECK(a.background.index == 20);
+    // Entry 20 of the 256-colour cube is the same in every palette: (0, 0, 215).
+    CHECK(a.background.rgb == qRgb(0, 0, 215));
+
+    auto const b = terminal.cell(0, 1);
+    CHECK(b.text == QStringLiteral("B"));
+    CHECK(b.attributes == contour::embed::CellAttributes { CellAttribute::CurlyUnderline });
+    CHECK(b.foreground.kind == ColorKind::Rgb);
+    CHECK(b.foreground.rgb == qRgb(1, 2, 3));
+    CHECK(b.background.kind == ColorKind::Default);
+
+    CHECK(terminal.cell(0, 2).text == QString::fromUtf8("e\xCC\x81"));
+
+    auto const wide = terminal.cell(0, 3);
+    CHECK(wide.text == QString::fromUtf8("\xE4\xB8\x96"));
+    CHECK(wide.width == 2);
+    auto const covered = terminal.cell(0, 4);
+    CHECK(covered.text.isEmpty());
+    CHECK(covered.width == 0);
+
+    auto const hidden = terminal.cell(0, 5);
+    CHECK(hidden.text == QStringLiteral("H"));
+    CHECK(hidden.attributes
+          == (contour::embed::CellAttributes { CellAttribute::Hidden } | CellAttribute::Inverse));
+
+    // A cell nothing was written to, and a place the page does not have.
+    CHECK(terminal.cell(0, 6).text.isEmpty());
+    CHECK(terminal.cell(0, 6).width == 1);
+    CHECK(terminal.cell(4, 0).text.isEmpty());
+    CHECK(terminal.cell(0, 20).text.isEmpty());
+    CHECK(terminal.cell(-1, 0).text.isEmpty());
+
+    auto const cursor = terminal.cursor();
+    CHECK(cursor.line == 1);
+    CHECK(cursor.column == 4);
+    CHECK(cursor.visible);
+}
+
+TEST_CASE("embed: the cursor, the screen that is up and the scrollback can be asked for", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 20, 3 } };
+    terminal.feed("one\r\ntwo\r\nthree\r\nfour\033[?25l");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("four")); }));
+    CHECK(terminal.historyLineCount() == 1);
+    CHECK(terminal.cell(-1, 0).text == QStringLiteral("o"));
+    CHECK(terminal.cell(0, 0).text == QStringLiteral("t"));
+    CHECK_FALSE(terminal.cursor().visible);
+    CHECK_FALSE(terminal.alternateScreen());
+
+    // The alternate screen is the one that is up once it is asked for, and keeps no history.
+    terminal.feed("\033[?1049h\033[Halt\033[5n");
+    REQUIRE(eventually([&] { return terminal.alternateScreen() && terminal.cell(0, 2).text == u"t"; }));
+    CHECK(terminal.cell(0, 0).text == QStringLiteral("a"));
+    CHECK(terminal.historyLineCount() == 0);
+    CHECK(terminal.cell(-1, 0).text.isEmpty());
+}
+
 TEST_CASE("embed: the built-in profile draws no status line", "[contour][embed]")
 {
     Terminal terminal { runtime(), QSize { 80, 24 } };

@@ -14,10 +14,12 @@
 
 #include <QtCore/QByteArray>
 #include <QtCore/QByteArrayView>
+#include <QtCore/QFlags>
 #include <QtCore/QObject>
 #include <QtCore/QSize>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
+#include <QtGui/QRgb>
 #include <QtGui/QSurfaceFormat>
 
 #include <filesystem>
@@ -93,6 +95,65 @@ class CONTOUR_EMBED_API Runtime final: public QObject
     std::unique_ptr<Impl> _impl;
 };
 
+/// How a cell's colour was asked for.
+enum class ColorKind : quint8
+{
+    Default, ///< The terminal's own foreground or background.
+    Indexed, ///< One of the 256 palette entries; the bright eight are 8 to 15.
+    Rgb,     ///< A direct colour.
+};
+
+/// One of a cell's two colours.
+struct CellColor
+{
+    ColorKind kind = ColorKind::Default; ///< How it was asked for.
+    int index = -1;                      ///< The palette entry, when kind is Indexed; otherwise -1.
+    /// What the palette in force makes of it. Not what is painted: an inverse, faint or hidden cell
+    /// is painted otherwise, and those are attributes.
+    QRgb rgb = 0;
+};
+
+/// What a cell is drawn with, beside its colours.
+enum class CellAttribute : quint16
+{
+    Bold = 1U << 0U,
+    Faint = 1U << 1U,
+    Italic = 1U << 2U,
+    Underline = 1U << 3U,
+    DoubleUnderline = 1U << 4U,
+    CurlyUnderline = 1U << 5U,
+    DottedUnderline = 1U << 6U,
+    DashedUnderline = 1U << 7U,
+    Blink = 1U << 8U,
+    Inverse = 1U << 9U,
+    Hidden = 1U << 10U,
+    CrossedOut = 1U << 11U,
+};
+Q_DECLARE_FLAGS(CellAttributes, CellAttribute)
+Q_DECLARE_OPERATORS_FOR_FLAGS(CellAttributes)
+
+/// One cell of a screen.
+struct Cell
+{
+    /// The cell's characters: a base and whatever combines with it. Empty for a cell nothing was
+    /// written to, and for the second column of a wide character.
+    QString text;
+    /// The columns the cell's character takes: 1, 2 for a wide one, and 0 for the column a wide one
+    /// to its left covers.
+    int width = 1;
+    CellAttributes attributes; ///< How it is drawn.
+    CellColor foreground;      ///< The colour of its character.
+    CellColor background;      ///< The colour behind it.
+};
+
+/// Where the cursor is, and whether it is shown.
+struct Cursor
+{
+    int line = 0;        ///< Counted from the top of the page, from 0.
+    int column = 0;      ///< Counted from the left, from 0.
+    bool visible = true; ///< Whether the child has it shown (DECTCEM).
+};
+
 /// One terminal: an emulator and its screen, with no child process behind it.
 class CONTOUR_EMBED_API Terminal final: public QObject
 {
@@ -126,6 +187,25 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// The main page as text, one line per row. For a host's own tests.
     /// @return The text.
     [[nodiscard]] QString mainPageText() const;
+
+    /// One cell of the screen that is up, primary or alternate.
+    /// @param line   The line, from 0 at the top of the page. A negative line is scrollback: -1 is
+    ///               the line that most recently left the top.
+    /// @param column The column, from 0 at the left.
+    /// @return The cell, or a default-constructed one for a place the screen does not have.
+    [[nodiscard]] Cell cell(int line, int column) const;
+
+    /// The cursor of the screen that is up.
+    /// @return Its place and whether it is shown.
+    [[nodiscard]] Cursor cursor() const;
+
+    /// Which screen is up.
+    /// @return True for the alternate screen, false for the primary one.
+    [[nodiscard]] bool alternateScreen() const;
+
+    /// How many lines have left the top of the screen that is up and are kept.
+    /// @return The count; 0 on the alternate screen, which keeps none.
+    [[nodiscard]] int historyLineCount() const;
 
   signals:
     /// Bytes for the child: keys, pastes, mouse reports and replies. Emitted on the GUI thread.

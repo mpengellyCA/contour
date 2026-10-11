@@ -351,6 +351,105 @@ void Terminal::feed(QByteArrayView bytes)
     _impl->pty->feed(std::string_view { bytes.data(), static_cast<std::size_t>(bytes.size()) });
 }
 
+namespace
+{
+
+    /// One of a cell's colours, as the public header describes one.
+    /// @param palette The palette in force.
+    /// @param color   The cell's colour.
+    /// @param target  Which of the two it is, which decides what Default means.
+    /// @return The colour, with what the palette makes of it.
+    [[nodiscard]] CellColor describeColor(vtbackend::ColorPalette const& palette,
+                                          vtbackend::Color color,
+                                          vtbackend::ColorTarget target)
+    {
+        auto const resolved = vtbackend::apply(palette, color, target, vtbackend::ColorMode::Normal);
+        auto const rgb = qRgb(resolved.red, resolved.green, resolved.blue);
+        if (vtbackend::isIndexedColor(color))
+            return { .kind = ColorKind::Indexed, .index = vtbackend::getIndexedColor(color), .rgb = rgb };
+        if (vtbackend::isBrightColor(color))
+            return { .kind = ColorKind::Indexed, .index = 8 + vtbackend::getBrightColor(color), .rgb = rgb };
+        if (vtbackend::isRGBColor(color))
+            return { .kind = ColorKind::Rgb, .index = -1, .rgb = rgb };
+        return { .kind = ColorKind::Default, .index = -1, .rgb = rgb };
+    }
+
+    /// The attributes a cell's flags amount to.
+    /// @param flags The cell's flags.
+    /// @return The same, in the public header's terms.
+    [[nodiscard]] CellAttributes describeFlags(vtbackend::CellFlags flags)
+    {
+        using vtbackend::CellFlag;
+        auto constexpr Pairs = std::array {
+            std::pair { CellFlag::Bold, CellAttribute::Bold },
+            std::pair { CellFlag::Faint, CellAttribute::Faint },
+            std::pair { CellFlag::Italic, CellAttribute::Italic },
+            std::pair { CellFlag::Underline, CellAttribute::Underline },
+            std::pair { CellFlag::DoublyUnderlined, CellAttribute::DoubleUnderline },
+            std::pair { CellFlag::CurlyUnderlined, CellAttribute::CurlyUnderline },
+            std::pair { CellFlag::DottedUnderline, CellAttribute::DottedUnderline },
+            std::pair { CellFlag::DashedUnderline, CellAttribute::DashedUnderline },
+            std::pair { CellFlag::Blinking, CellAttribute::Blink },
+            std::pair { CellFlag::RapidBlinking, CellAttribute::Blink },
+            std::pair { CellFlag::Inverse, CellAttribute::Inverse },
+            std::pair { CellFlag::Hidden, CellAttribute::Hidden },
+            std::pair { CellFlag::CrossedOut, CellAttribute::CrossedOut },
+        };
+        auto attributes = CellAttributes {};
+        for (auto const& [flag, attribute]: Pairs)
+            if (flags.contains(flag))
+                attributes |= attribute;
+        return attributes;
+    }
+
+} // namespace
+
+Cell Terminal::cell(int line, int column) const
+{
+    auto const& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    auto const& screen = terminal.currentScreen();
+    auto const page = terminal.pageSize();
+    if (column < 0 || column >= page.columns.as<int>() || line >= page.lines.as<int>()
+        || line < -screen.historyLineCount().as<int>())
+        return {};
+
+    auto const at = screen.at(vtbackend::LineOffset(line), vtbackend::ColumnOffset(column));
+    auto const flags = at.flags();
+    auto const& palette = terminal.colorPalette();
+    return Cell {
+        .text = QString::fromStdU32String(at.codepoints()),
+        .width = flags.contains(vtbackend::CellFlag::WideCharContinuation) ? 0 : at.width(),
+        .attributes = describeFlags(flags),
+        .foreground = describeColor(palette, at.foregroundColor(), vtbackend::ColorTarget::Foreground),
+        .background = describeColor(palette, at.backgroundColor(), vtbackend::ColorTarget::Background),
+    };
+}
+
+Cursor Terminal::cursor() const
+{
+    auto const& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    auto const position = terminal.currentScreen().cursor().position;
+    return Cursor { .line = position.line.as<int>(),
+                    .column = position.column.as<int>(),
+                    .visible = terminal.isModeEnabled(vtbackend::DECMode::VisibleCursor) };
+}
+
+bool Terminal::alternateScreen() const
+{
+    auto const& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    return terminal.isAlternateScreen();
+}
+
+int Terminal::historyLineCount() const
+{
+    auto const& terminal = _impl->session->terminal();
+    auto const lock = std::scoped_lock { terminal };
+    return terminal.currentScreen().historyLineCount().as<int>();
+}
+
 QString Terminal::mainPageText() const
 {
     // The terminal's own thread is writing the page this reads.
