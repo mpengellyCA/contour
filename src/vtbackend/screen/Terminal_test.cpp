@@ -2245,6 +2245,37 @@ TEST_CASE("Terminal.GraphemeCluster.aWideCellOnTheLastColumnKeepsItsWidth", "[te
     CHECK(selected == unselected);
 }
 
+TEST_CASE("Terminal.Utf8.anUnfinishedCharacterIsTheSameWhereverTheReadEnded", "[terminal][unicode]")
+{
+    // E8 AA opens a three-byte character that never finishes, because a control arrives where its
+    // last byte was owed. What a terminal then shows must not depend on where a read happened to
+    // end: the same bytes, whole and cut in two at every place, are the same line.
+    //
+    // A printable byte in the control's place is not covered here. Across two reads it is itself;
+    // within one, the text scanner still takes it for the character's last byte.
+    for (auto const interruption: { "\x18"sv,     // CAN
+                                    "\033[m"sv }) // a control sequence
+    {
+        CAPTURE(interruption);
+        auto const bytes = std::string("ab\xE8\xAA") + std::string(interruption) + "c";
+
+        auto const shown = [&](size_t cut) {
+            auto mock = MockTerm { PageSize { LineCount(1), ColumnCount(10) }, LineCount(0) };
+            mock.writeToScreen(std::string_view(bytes).substr(0, cut));
+            mock.writeToScreen(std::string_view(bytes).substr(cut));
+            return mock.terminal.primaryScreen().grid().lineText(LineOffset(0));
+        };
+
+        auto const whole = shown(0);
+        CHECK(whole == "abc       ");
+        for (auto const cut: std::views::iota(size_t { 1 }, bytes.size()))
+        {
+            CAPTURE(cut);
+            CHECK(shown(cut) == whole);
+        }
+    }
+}
+
 TEST_CASE("Terminal.GraphemeCluster.aFlagIsOneCellWhereverItIsWritten", "[terminal][unicode]")
 {
     // A flag is two regional indicators and one cluster (GB12, GB13). It was one cell only as the

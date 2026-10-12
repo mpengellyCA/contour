@@ -728,12 +728,17 @@ class Parser
     void printUtf8Byte(char ch);
 
   private:
-    /// Gives up on a UTF-8 character whose remaining bytes did not come, printing U+FFFD for it.
+    /// Gives up on a UTF-8 character whose remaining bytes did not come. Nothing is printed for it.
     ///
     /// A character is cut short by whatever arrives in place of its next continuation byte: a
     /// control, an escape sequence, or the first byte of another character. Until this existed the
     /// decoder kept the half it had and took the next printable byte as the rest, unvalidated --
     /// one wrong glyph, and the letter that completed it swallowed. No-op when nothing is pending.
+    ///
+    /// Nothing is printed because nothing is printed for the same bytes when they arrive in one
+    /// read with what follows them: the text scanner hands an ill-formed sequence on as it is and
+    /// the screen draws none of it. A replacement character here would make what a terminal shows
+    /// depend on where a read happened to end.
     void abandonUnfinishedCharacter();
 
     enum class ProcessKind : uint8_t

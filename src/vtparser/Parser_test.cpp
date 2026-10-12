@@ -124,14 +124,14 @@ TEST_CASE("Parser.BulkText_IncompleteUtf8_SplitAcrossCalls", "[Parser]")
 TEST_CASE("Parser.UnfinishedUtf8_IsAbandonedAtAPrintableByte", "[Parser]")
 {
     // E8 AA opens a three-byte character and stops. What follows is not a continuation byte, so the
-    // character is over: U+FFFD for it, and the letter is itself rather than its last third.
+    // character is over, and the letter is itself rather than its last third.
     MockParserEvents listener;
     auto p = vtparser::Parser<vtparser::ParserEvents>(listener);
 
     p.parseFragment("x\xE8\xAA"sv);
     CHECK(listener.text == "x");
     p.parseFragment("yz"sv);
-    CHECK(listener.text == "x\xEF\xBF\xBDyz");
+    CHECK(listener.text == "xyz");
 }
 
 TEST_CASE("Parser.UnfinishedUtf8_IsAbandonedAtAControl", "[Parser]")
@@ -153,7 +153,7 @@ TEST_CASE("Parser.UnfinishedUtf8_IsAbandonedAtAControl", "[Parser]")
 
     // The stray continuation byte that arrives afterwards completes nothing: the character it
     // belonged to was given up, so it is an invalid byte of its own.
-    CHECK(listener.text.starts_with("a\xEF\xBF\xBD"));
+    CHECK(listener.text.starts_with("a"));
     CHECK(listener.text.ends_with("b"));
     CHECK(listener.text.find("\xE8") == std::string::npos);
 }

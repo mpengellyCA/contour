@@ -736,10 +736,7 @@ void Parser<EventListener, TraceStateChanges>::abandonUnfinishedCharacter()
     if (_scanState.utf8.expectedLength == 0)
         return;
 
-    auto constexpr ReplacementCharacter = char32_t { 0xFFFD };
     _scanState.utf8 = {};
-    _eventListener.print(ReplacementCharacter);
-    _scanState.lastCodepointHint = ReplacementCharacter;
 }
 
 template <ParserEventsConcept EventListener, bool TraceStateChanges>
@@ -751,8 +748,7 @@ void Parser<EventListener, TraceStateChanges>::handle(ActionClass actionClass,
     auto const ch = static_cast<char>(codepoint);
 
     // Only printing continues a character. Every other action means a control or a sequence arrived
-    // where a continuation byte was owed -- before it is acted on, so the replacement character
-    // lands ahead of whatever the control does.
+    // where a continuation byte was owed, and the character is given up before it is acted on.
     if (action != Action::Print)
         abandonUnfinishedCharacter();
 
