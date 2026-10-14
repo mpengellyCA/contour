@@ -165,6 +165,18 @@ struct SearchState
     bool capped = false; ///< The count stopped at a limit: there are at least `matches`.
 };
 
+/// What becomes of the replies a terminal makes to its child.
+///
+/// A child asks its terminal things -- where the cursor is, what it is, what a colour holds -- and a
+/// terminal answers. A host that shows one child in several terminals, or answers the child itself,
+/// has each of them withhold its replies: a child answered twice takes the second report for
+/// something typed.
+enum class Replies : quint8
+{
+    Sent,     ///< Replies leave by input(), as a terminal's do.
+    Withheld, ///< Replies are dropped; input() carries only keys, pastes, and mouse and focus reports.
+};
+
 /// One terminal: an emulator and its screen, with no child process behind it.
 class CONTOUR_EMBED_API Terminal final: public QObject
 {
@@ -176,6 +188,12 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     /// @param page    The initial page: width is columns, height is lines.
     /// @param parent  The usual QObject parent.
     Terminal(Runtime& runtime, QSize page, QObject* parent = nullptr);
+
+    /// @param runtime The runtime; must outlive this object.
+    /// @param page    The initial page: width is columns, height is lines.
+    /// @param replies What becomes of the terminal's replies to the child; fixed for its lifetime.
+    /// @param parent  The usual QObject parent.
+    Terminal(Runtime& runtime, QSize page, Replies replies, QObject* parent = nullptr);
     ~Terminal() override;
 
     /// What a `ContourTerminal` item's `session` property takes.
@@ -300,7 +318,8 @@ class CONTOUR_EMBED_API Terminal final: public QObject
     bool scrollToNextMark();
 
   signals:
-    /// Bytes for the child: keys, pastes, mouse reports and replies. Emitted on the GUI thread.
+    /// Bytes for the child: keys, pastes, mouse reports and, unless they are withheld, replies.
+    /// Emitted on the GUI thread.
     void input(QByteArray const& bytes);
 
     /// The display's pixels would fit a page of @p page (width columns, height lines). Emitted on the

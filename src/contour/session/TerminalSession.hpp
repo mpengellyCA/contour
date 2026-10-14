@@ -481,6 +481,9 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
      *        one to assert what OSC 99 asked for and to drive close/activation events back.
      * @param pageSizeAuthority who resizes the page. Display (the default) is a terminal window: the
      *        page follows the pixels. Host leaves the page to resizePage() alone.
+     * @param queryReplies what becomes of the terminal's replies to its application. Sent (the
+     *        default) is a terminal: it answers. Withheld is a view of a session that is answered
+     *        elsewhere, and writes only what the user does.
      */
     TerminalSession(TerminalSessionManager* manager,
                     std::unique_ptr<vtpty::Pty> pty,
@@ -489,7 +492,8 @@ class TerminalSession: public QAbstractItemModel, public vtbackend::Terminal::Ev
                     std::optional<vtbackend::PageSize> initialPageSize = std::nullopt,
                     std::optional<vtpty::Process::ExecInfo> launchedCommand = std::nullopt,
                     std::unique_ptr<platform::Notifier> notifier = nullptr,
-                    PageSizeAuthority pageSizeAuthority = PageSizeAuthority::Display);
+                    PageSizeAuthority pageSizeAuthority = PageSizeAuthority::Display,
+                    vtbackend::QueryReplies queryReplies = vtbackend::QueryReplies::Sent);
     ~TerminalSession() override;
 
     /// Who resizes this session's page; fixed at construction.

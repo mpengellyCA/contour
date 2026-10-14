@@ -202,6 +202,18 @@ namespace
         return appDefault;
     }
 
+    /// The settings a session's terminal is built from: what the configuration says, and what only
+    /// the session's creator can say.
+    /// @param settings     The settings resolved from the configuration.
+    /// @param queryReplies What becomes of the terminal's replies; no configuration names this.
+    /// @return The settings, complete.
+    [[nodiscard]] vtbackend::Settings withQueryReplies(vtbackend::Settings settings,
+                                                       vtbackend::QueryReplies queryReplies)
+    {
+        settings.queryReplies = queryReplies;
+        return settings;
+    }
+
     class ExitWatcherThread: public QThread
     {
       public:
@@ -229,7 +241,8 @@ TerminalSession::TerminalSession(TerminalSessionManager* manager,
                                  std::optional<vtbackend::PageSize> initialPageSize,
                                  std::optional<vtpty::Process::ExecInfo> launchedCommand,
                                  std::unique_ptr<platform::Notifier> notifier,
-                                 PageSizeAuthority pageSizeAuthority):
+                                 PageSizeAuthority pageSizeAuthority,
+                                 vtbackend::QueryReplies queryReplies):
     _manager { manager },
     _id { createSessionId() },
     _startTime { steady_clock::now() },
@@ -248,7 +261,9 @@ TerminalSession::TerminalSession(TerminalSessionManager* manager,
     _terminal { *this,
                 app.processEnvironment(),
                 std::move(pty),
-                config::sessionSettings(_config, _profile, _currentColorPreference, initialPageSize),
+                withQueryReplies(
+                    config::sessionSettings(_config, _profile, _currentColorPreference, initialPageSize),
+                    queryReplies),
                 std::chrono::steady_clock::now() },
     _pageSizeAuthority { pageSizeAuthority },
     _exitWatcherThread { std::make_unique<ExitWatcherThread>(*this) },

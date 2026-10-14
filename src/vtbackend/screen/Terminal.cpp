@@ -3570,6 +3570,10 @@ std::string foldC1ControlsToEightBit(std::string_view sevenBit)
 
 void Terminal::reply(string_view text)
 {
+    // Whoever owns this terminal's session answers its application. @see QueryReplies.
+    if (_settings.queryReplies == QueryReplies::Withheld)
+        return;
+
     // this is invoked from within the terminal thread.
     // most likely that's not the main thread, which will however write
     // the actual input events.

@@ -970,3 +970,27 @@ TEST_CASE("embed: a host's configuration file that parses is the host's to write
     CHECK(loaded.writeClipboard == contour::config::Permission::Allow);
     CHECK(loaded.reported.empty());
 }
+
+TEST_CASE("embed: a terminal whose replies are withheld writes only what the user does", "[contour][embed]")
+{
+    Terminal terminal { runtime(), QSize { 80, 24 }, contour::embed::Replies::Withheld };
+    auto* const session = dynamic_cast<contour::session::TerminalSession*>(terminal.session());
+    REQUIRE(session != nullptr);
+    QSignalSpy written { &terminal, &Terminal::input };
+
+    // Where the cursor is, what the terminal is and what its background holds, then text: once the
+    // text is on the page the questions before it have been read.
+    terminal.feed("\033[6n\033[c\033]11;?\033\\asked");
+    REQUIRE(eventually([&] { return terminal.mainPageText().contains(QStringLiteral("asked")); }));
+    // A reply would be queued behind the page by now; this gives it the two seconds every other
+    // test here gives one to arrive.
+    CHECK_FALSE(eventually([&] { return !written.isEmpty(); }));
+
+    // A paste is the user's, and leaves as it always did.
+    {
+        auto const lock = std::scoped_lock { session->terminal() };
+        session->terminal().sendPaste("typed");
+    }
+    REQUIRE(eventually([&] { return !written.isEmpty(); }));
+    CHECK(written.first().first().toByteArray() == "typed");
+}

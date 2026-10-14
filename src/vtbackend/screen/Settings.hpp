@@ -35,10 +35,26 @@ enum class TabsNamingMode : uint8_t
     Title
 };
 
+/// What becomes of the replies a terminal makes to its application.
+///
+/// A terminal answers what it is asked: where the cursor is, what it is, what a colour holds. One
+/// that is a view of a session whose application is answered elsewhere -- by whatever owns that
+/// session, once, on behalf of every view of it -- must not answer as well: the application would
+/// read each report twice, and take the second for something typed.
+enum class QueryReplies : uint8_t
+{
+    Sent = 0, ///< Replies are written to the application, as a terminal's are.
+    Withheld, ///< Replies are worked out and dropped; only what the user does is written.
+};
+
 /// Terminal settings, enabling hardware reset to be easier implemented.
 struct Settings
 {
     VTType terminalId = VTType::VT525;
+
+    /// Whether what Terminal::reply() is given reaches the application. Keys, pastes, and mouse and
+    /// focus reports are not replies and are written either way.
+    QueryReplies queryReplies = QueryReplies::Sent;
     ColorPalette colorPalette; // NB: The default color palette can be taken from the factory settings.
 
     // Set of DEC modes that are frozen and cannot be changed by the application.

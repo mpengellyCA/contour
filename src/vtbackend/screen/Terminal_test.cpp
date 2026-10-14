@@ -3269,3 +3269,35 @@ TEST_CASE("Terminal.historyEviction.aShellWithoutOsc133SimplyBoundsAtTheHardLimi
     CHECK(mock.terminal.primaryScreen().historyLineCount() == LineCount(24));
     CHECK(mock.terminal.primaryScreen().grid().lineText(LineOffset(-24)) == "line174   ");
 }
+
+TEST_CASE("Terminal.QueryReplies.withheldWritesOnlyWhatTheUserDoes", "[terminal]")
+{
+    // Where the cursor is, what the terminal is, and what the default background holds: three
+    // questions every terminal answers.
+    constexpr auto Questions = "\033[6n\033[c\033]11;?\033\\"sv;
+
+    SECTION("sent: a terminal answers")
+    {
+        auto mock = MockTerm { ColumnCount(20), LineCount(5) };
+        mock.writeToScreen(Questions);
+        mock.terminal.flushInput();
+        CHECK(mock.replyData().starts_with("\033[1;1R\033[?"));
+        CHECK(mock.replyData().contains("\033]11;rgb:"));
+    }
+
+    SECTION("withheld: the questions are read and nothing is written")
+    {
+        auto mock = MockTerm { ColumnCount(20), LineCount(5) };
+        mock.terminal.settings().queryReplies = vtbackend::QueryReplies::Withheld;
+        mock.writeToScreen(Questions);
+        mock.writeToScreen("asked");
+        mock.terminal.flushInput();
+        CHECK(mock.replyData().empty());
+        CHECK(mock.terminal.primaryScreen().grid().lineText(LineOffset(0)).starts_with("asked"));
+
+        // A key is not a reply.
+        mock.sendCharEvent(U'a');
+        mock.terminal.flushInput();
+        CHECK(mock.replyData() == "a");
+    }
+}

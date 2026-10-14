@@ -341,6 +341,11 @@ struct Terminal::Impl
 };
 
 Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
+    Terminal { runtime, page, Replies::Sent, parent }
+{
+}
+
+Terminal::Terminal(Runtime& runtime, QSize page, Replies replies, QObject* parent):
     QObject { parent }, _impl { std::make_unique<Impl>() }
 {
     auto const pageSize =
@@ -368,14 +373,16 @@ Terminal::Terminal(Runtime& runtime, QSize page, QObject* parent):
     // A notifier that raises nothing. Left to its default a session takes the platform's own, and a
     // child's OSC 99 or OSC 777 then goes straight to the desktop: no permission governs it and no
     // display is needed for it, so this is the only place it can be refused.
-    _impl->session = std::make_unique<session::TerminalSession>(&app.sessionsManager(),
-                                                                std::move(pty),
-                                                                app,
-                                                                std::string {},
-                                                                pageSize,
-                                                                std::nullopt,
-                                                                std::make_unique<platform::NullNotifier>(),
-                                                                session::PageSizeAuthority::Host);
+    _impl->session = std::make_unique<session::TerminalSession>(
+        &app.sessionsManager(),
+        std::move(pty),
+        app,
+        std::string {},
+        pageSize,
+        std::nullopt,
+        std::make_unique<platform::NullNotifier>(),
+        session::PageSizeAuthority::Host,
+        replies == Replies::Withheld ? vtbackend::QueryReplies::Withheld : vtbackend::QueryReplies::Sent);
 
     // What the device is told about its size is not a request: it is the terminal reporting a resize
     // that has already happened, and it also fires when a display merely attaches. The request is
